@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" data-font="lexend" data-size="m" data-spacing="normal" data-contrast="normal" data-plain="off">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>learn-alpine — master Alpine.js 3.17 by doing</title>
+<meta name="description" content="An exhaustive, exercise-driven, dyslexia-friendly dark-mode course for Alpine.js 3.17 — with actuarial, statistical and geometry problems, and a mastery score.">
+<link rel="stylesheet" href="./styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23131c31'/%3E%3Cpath d='M16 5l10 21H6z' fill='none' stroke='%235eead4' stroke-width='2.5'/%3E%3Cpath d='M16 13l5 10.5H11z' fill='%23a78bfa'/%3E%3C/svg%3E">
+
+<!-- The in-browser workshop runtime (Alpine 3.17.4 + all official plugins + the
+     exercise asserter), inlined as text so exercises work from file:// and offline. -->
+<script src="./assets/harness-inline.js" defer></script>
+<!-- The course application itself. -->
+<script src="./assets/app.js" defer></script>
+</head>
+
+<body x-data="shell()" x-effect="applyPrefs()" x-init="boot()">
+
+<a class="sr" href="#view">Skip to content</a>
+
+<div class="reading-ruler" x-show="$store.course.prefs.ruler" x-cloak aria-hidden="true"></div>
+
+<div class="app">
+
+  <!-- ============================================================ sidebar -->
+  <aside class="sidebar" :class="{ open: navOpen }" aria-label="Course navigation">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#0f1729"/>
+        <path d="M16 5l10 21H6z" fill="none" stroke="#5eead4" stroke-width="2.2"/>
+        <path d="M16 13l5 10.5H11z" fill="#a78bfa"/>
+      </svg>
+      <div>
+        <h1>learn-alpine</h1>
+        <div class="sub">Alpine.js 3.17 · <span x-text="stats.lessonCount"></span> exercises · <span x-text="stats.quizCount"></span> quiz items</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="#/" @click="navOpen = false" :class="{ active: route.name === 'home' }">
+        <span class="n">◎</span><span class="lab">Dashboard &amp; score</span><span class="tick"></span>
+      </a>
+      <a href="#/path" @click="navOpen = false" :class="{ active: route.name === 'path' }">
+        <span class="n">≡</span><span class="lab">Study path</span><span class="tick"></span>
+      </a>
+    </nav>
+
+    <div class="nav-head">Modules — 18 steps, foundations to source level</div>
+    <nav class="nav">
+      <template x-for="m in $store.course.modules" :key="m.id">
+        <a :href="'#/m/' + m.id" @click="navOpen = false"
+           :class="{ active: route.name === 'module' && route.id === m.id }">
+          <span class="n" x-text="String(m.num).padStart(2,'0')"></span>
+          <span class="lab" x-text="m.title"></span>
+          <span class="tick" :class="{ done: m.pct === 100 }" x-text="m.pct + '%'"></span>
+        </a>
+      </template>
+    </nav>
+
+    <div class="nav-head">Practice &amp; reference</div>
+    <nav class="nav">
+      <a href="#/quiz" @click="navOpen = false" :class="{ active: route.name === 'quiz' }">
+        <span class="n">?</span><span class="lab">Quiz battery</span><span class="tick" x-text="scorePct + '%'"></span>
+      </a>
+      <a href="#/workshop" @click="navOpen = false" :class="{ active: route.name === 'workshop' }">
+        <span class="n">⚒</span><span class="lab">Free workshop</span><span class="tick"></span>
+      </a>
+      <a href="#/calculator" @click="navOpen = false" :class="{ active: route.name === 'calculator' }">
+        <span class="n">∫</span><span class="lab">Actuarial toolkit</span><span class="tick"></span>
+      </a>
+      <a href="#/cheatsheet" @click="navOpen = false" :class="{ active: route.name === 'cheatsheet' }">
+        <span class="n">⌘</span><span class="lab">Cheatsheet</span><span class="tick"></span>
+      </a>
+      <a href="#/insights" @click="navOpen = false" :class="{ active: route.name === 'insights' }">
+        <span class="n">▤</span><span class="lab">Insights &amp; data</span><span class="tick"></span>
+      </a>
+      <a href="#/settings" @click="navOpen = false" :class="{ active: route.name === 'settings' }">
+        <span class="n">⚙</span><span class="lab">Readability &amp; storage</span><span class="tick"></span>
+      </a>
+    </nav>
+
+    <div class="card" style="padding:12px;background:#101a30">
+      <div class="row" style="justify-content:space-between">
+        <span class="chip" :class="storeKind">
+          <span x-text="storageLabel"></span>
+        </span>
+      </div>
+      <p class="tiny muted" style="margin:8px 0 0" x-show="!storageOK">
+        This window is sandboxed, so progress lives in memory only. Open the project locally
+        (<code>npm run dev</code>) for saved progress.
+      </p>
+    </div>
+  </aside>
+
+  <!-- =============================================================== main -->
+  <main class="main">
+    <header class="topbar">
+      <button class="btn-sm icon-btn only-mobile" @click="navOpen = ! navOpen" aria-label="Toggle navigation">☰</button>
+      <div class="crumb" aria-live="polite">
+        <b x-text="pageTitle"></b>
+      </div>
+      <div class="spacer"></div>
+
+      <a href="#/insights" class="chip accent" :title="'Weighted mastery: 45% exercises, 40% quiz, 15% coverage'">
+        <span>Mastery</span><b x-text="mastery + '%'"></b>
+        <span class="muted" x-text="'· ' + level"></span>
+      </a>
+
+      <!-- readability controls: dogfooding x-bind, $store and $persist -->
+      <div class="row" role="group" aria-label="Readability controls">
+        <button class="btn-sm" @click="cycleFont()" :title="'Reading font: ' + prefs.font">
+          Aa<span class="tiny muted" x-text="' ' + fontLabel"></span>
+        </button>
+        <button class="btn-sm" @click="setSize(-1)" aria-label="Decrease text size">A−</button>
+        <button class="btn-sm" @click="setSize(1)" aria-label="Increase text size">A+</button>
+        <button class="btn-sm" @click="prefs.spacing = prefs.spacing === 'wide' ? 'normal' : 'wide'"
+                :class="{ 'btn-primary': prefs.spacing === 'wide' }" title="Extra space between words and lines">⇕ space</button>
+        <button class="btn-sm" @click="prefs.plain = ! prefs.plain"
+                :class="{ 'btn-primary': prefs.plain }" title="Remove colour accents (colour-blind / low-vision mode)">◐ plain</button>
+        <button class="btn-sm" @click="prefs.ruler = ! prefs.ruler"
+                :class="{ 'btn-primary': prefs.ruler }" title="Reading ruler follows your pointer">▭ ruler</button>
+      </div>
+    </header>
+
+    <div class="wrap" id="view" x-ref="view" tabindex="-1">
+      <p class="muted">Loading the course…</p>
+    </div>
+
+    <footer class="footer">
+      <p>
+        Built for self-study of <b>Alpine.js 3.17.4</b> · <span x-text="stats.taskCount"></span> auto-checked tasks ·
+        <span x-text="stats.exerciseCount"></span> exercises · <span x-text="stats.quizCount"></span> quiz items.
+        Content follows the official documentation structure at <a href="https://alpinejs.dev" target="_blank" rel="noreferrer">alpinejs.dev</a>.
+      </p>
+      <p class="tiny muted">
+        Everything runs locally: no accounts, no telemetry. Progress is stored in this browser only.
+      </p>
+    </footer>
+  </main>
+</div>
+
+<!-- ================================================================= toasts -->
+<div class="toast-host" aria-live="polite">
+  <template x-for="t in $store.course.toasts" :key="t.id">
+    <div class="toast" :class="t.kind" x-text="t.text"></div>
+  </template>
+</div>
+
+<!-- ============================================================ reset modal -->
+<div x-data="{ open: false }" x-effect="if (open) $store.course.closeReset = () => open = false"
+     @open-reset.window="open = true" @keydown.escape.window="open = false">
+  <div x-show="open" x-cloak x-trap="open" @click.outside="open = false"
+       style="position:fixed;inset:0;background:#04070daa;display:grid;place-items:center;z-index:100"
+       role="dialog" aria-modal="true" aria-labelledby="reset-title">
+    <div class="card" style="max-width:560px" @click.stop>
+      <h2 id="reset-title">Reset all progress?</h2>
+      <p>This clears every checked task, quiz answer and the mastery score stored in this browser. Your notes in the free workshop are cleared too. It cannot be undone.</p>
+      <div class="row" style="justify-content:flex-end">
+        <button @click="open = false" class="btn-ghost">Keep my progress</button>
+        <button class="btn-danger" @click="$store.course.reset(); open = false">Yes, reset everything</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

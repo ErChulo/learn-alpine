@@ -1,0 +1,40 @@
+{
+  "name": "learn-alpine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An exhaustive, exercise-driven course for Alpine.js 3.17 — with an actuarial flavour, dark mode, and a mastery score.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "node tests/run.mjs",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "keywords": [
+    "alpinejs",
+    "course",
+    "actuarial",
+    "spa",
+    "dark-mode",
+    "dyslexia-friendly"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@alpinejs/anchor": "3.17.4",
+    "@alpinejs/collapse": "3.17.4",
+    "@alpinejs/focus": "3.17.4",
+    "@alpinejs/intersect": "3.17.4",
+    "@alpinejs/mask": "3.17.4",
+    "@alpinejs/morph": "3.17.4",
+    "@alpinejs/persist": "3.17.4",
+    "@alpinejs/resize": "3.17.4",
+    "@alpinejs/sort": "3.17.4",
+    "alpinejs": "3.17.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.63.0",
+    "vite": "^5.4.11"
+  }
+}
