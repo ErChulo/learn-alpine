@@ -51,6 +51,13 @@ fi
 # ------------------------------------------------------------- 3. preflight --
 say "Checking git and the GitHub CLI"
 command -v git >/dev/null 2>&1 || { echo "git is not installed"; exit 1; }
+
+# The project may arrive as a zip rather than a clone — make it a repository.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  ok "no git repository here yet — creating one on branch $BRANCH"
+  git init -q -b "$BRANCH" 2>/dev/null || { git init -q; git symbolic-ref HEAD "refs/heads/$BRANCH"; }
+fi
+
 command -v gh  >/dev/null 2>&1 || {
   cat <<'EOF'
   The GitHub CLI (`gh`) is not installed. Either install it:
@@ -79,7 +86,11 @@ fi
 if [ -n "$(git status --porcelain)" ]; then
   say "Committing outstanding changes"
   git add -A
-  git -c commit.gpgsign=false commit -q -m "Rebuild before publish" || true
+  if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    git -c commit.gpgsign=false commit -q -m "Rebuild before publish" || true
+  else
+    git -c commit.gpgsign=false commit -q -m "learn-alpine: import" || true
+  fi
   ok "committed"
 else
   ok "nothing to commit"
