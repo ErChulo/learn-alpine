@@ -16825,11 +16825,13 @@ Typical jobs: reveal a lazily built table, fetch page two, count an impression.`
     srcdoc(code) {
       const harness = HARNESS();
       const opts = JSON.stringify({ mode: this.mode, vendor: this.vendor });
+      const inlineVendor = this.mode === "raw" && window.__LA_VENDOR_INLINE ? `<script>window.__LA_VENDOR_INLINE = ${JSON.stringify(window.__LA_VENDOR_INLINE).replace(/<\//g, "<\\/")};<\/script>` : "";
       return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>${BASE_CSS}</style>
 <script>window.__LA_OPTS = ${opts};<\/script>
 <script>${harness}<\/script>
+${inlineVendor}
 </head><body>
 ${code}
 <script>window.__LA && window.__LA.start && window.__LA.start();<\/script>
@@ -17097,8 +17099,9 @@ ${code}
 
   // src/components/quiz-item.js
   function registerQuizItem(Alpine2) {
-    Alpine2.data("quizItem", () => ({
+    Alpine2.data("quizItem", (json) => ({
       cfg: null,
+      _json: typeof json === "string" ? json : "",
       question: "",
       optHtml: [],
       pick: null,
@@ -17109,7 +17112,13 @@ ${code}
       attempts: 0,
       letters: ["A", "B", "C", "D", "E", "F"],
       init() {
-        this.cfg = JSON.parse(this.$el.dataset.q);
+        this.$el.__qi = this;
+        const raw3 = this._json || this.$el.dataset.q;
+        if (!raw3) {
+          this.cfg = null;
+          return;
+        }
+        this.cfg = JSON.parse(raw3);
         this.question = mini(this.cfg.q);
         this.optHtml = this.cfg.options.map((o) => mini(o));
         const st = this.$store.course.engine.data.quiz[this.cfg.key];
@@ -18028,6 +18037,7 @@ ${code}
       answer: typeof q.answer === "number" ? q.answer : null,
       answers: q.answers || [],
       accept: q.accept || [],
+      tol: q.tol,
       why: q.why,
       distractors: q.distractors || {},
       skill: q.skill || ""
@@ -18217,6 +18227,7 @@ ${code}
         answer: typeof q.answer === "number" ? q.answer : null,
         answers: q.answers || [],
         accept: q.accept || [],
+        tol: q.tol,
         why: q.why,
         distractors: q.distractors || {},
         skill: q.skill || ""
@@ -18266,7 +18277,7 @@ ${code}
       </div>
 
       <template x-for="it in visible" :key="it.key">
-        <div x-data="quizItem" :data-q="JSON.stringify(it)"></div>
+        <div class="q" x-data="quizItem(JSON.stringify(it))" x-cloak></div>
       </template>
 
       <div class="card" style="background:#101a30">
@@ -19046,6 +19057,63 @@ ${code}
   </div>`;
   }
 
+  // src/components/settings.js
+  function registerSettings(Alpine2) {
+    Alpine2.data("settings", () => ({
+      sizeNames: ["small", "comfortable", "large", "extra large"],
+      fonts: [
+        { id: "lexend", name: "Lexend", note: "Designed for reading proficiency research. Default." },
+        { id: "atkinson", name: "Atkinson Hyperlegible", note: "Braille Institute; maximally distinct letterforms." },
+        { id: "opendyslexic", name: "OpenDyslexic", note: "Weighted bottoms to fight letter rotation." }
+      ],
+      get prefs() {
+        return this.$store.course.prefs;
+      },
+      setFont(id) {
+        this.$store.course.prefs.font = id;
+        this.$store.course.savePrefs();
+        this.$store.course.toast("Reading font: " + id);
+      },
+      setSize(d) {
+        this.$store.course.setSize(d);
+      },
+      get storageKind() {
+        return this.$store.course.persistent ? "localStorage (this browser)" : "memory only \u2014 this window blocks storage";
+      },
+      get keys() {
+        try {
+          return Object.keys(localStorage).filter((k2) => k2.startsWith("learn-alpine")).join(", ") || "\u2014";
+        } catch (e) {
+          return "unavailable";
+        }
+      },
+      get bytes() {
+        try {
+          return (localStorage.getItem("learn-alpine.progress.v1") || "").length;
+        } catch (e) {
+          return 0;
+        }
+      },
+      exportProgress() {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([this.$store.course.engine.export()], { type: "application/json" }));
+        a.download = "learn-alpine-progress.json";
+        a.click();
+      },
+      async importProgress(ev) {
+        const f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        try {
+          this.$store.course.engine.import(await f.text());
+          this.$store.course.refresh();
+          location.reload();
+        } catch (e) {
+          this.$store.course.toast("Could not read that file: " + e.message, "bad");
+        }
+      }
+    }));
+  }
+
   // src/app.js
   var PLUGINS = [module_default2, module_default3, module_default4, module_default5, module_default6, module_default7, module_default8, module_default9, module_default10];
   PLUGINS.forEach((p) => module_default.plugin(p));
@@ -19060,6 +19128,7 @@ ${code}
   registerBondCalc(module_default);
   registerVarSim(module_default);
   registerStatsTool(module_default);
+  registerSettings(module_default);
   var SIZES = ["s", "m", "l", "xl"];
   module_default.data("shell", () => ({
     navOpen: false,

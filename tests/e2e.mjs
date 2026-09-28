@@ -125,6 +125,51 @@ try {
     }
   }
 
+  /* --------------------------------------------------------------- routes */
+  console.log('\n▸ every route renders')
+  for (const route of ['path', 'workshop', 'calculator', 'cheatsheet', 'insights', 'settings']) {
+    const before = consoleErrors.length
+    await page.goto(`${BASE}/#/${route}`, { waitUntil: 'load' })
+    await page.waitForTimeout(700)
+    const text = await page.locator('#view').innerText().catch(() => '')
+    const chunk = await page.evaluate(() => {
+      const h = document.querySelector('#view h1, #view h2')
+      return h ? h.textContent.trim() : ''
+    })
+    check(chunk.length > 2 && text.length > 60 && consoleErrors.length === before,
+      `#/${route} renders ("${chunk.slice(0, 40)}")`,
+      consoleErrors.slice(before).slice(0, 2).join(' | '))
+  }
+
+  /* ---------------------------------------------------------- quiz battery */
+  console.log('\n▸ quiz battery')
+  await page.goto(`${BASE}/#/quiz`, { waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  // The default filter is "still to do" — the module loop above has just marked
+  // every item correct, so switch to "all" before counting.
+  await page.click('.pill-tabs button:has-text("all")')
+  await page.waitForTimeout(400)
+  const battery = await page.locator('.q').count()
+  check(battery > 40, `the quiz battery lists every item (${battery} rendered)`)
+  if (battery) {
+    const scored = await page.evaluate(() => {
+      let right = 0, total = 0
+      for (const el of document.querySelectorAll('.q')) {
+        const qi = el.__qi
+        if (!qi || !qi.cfg) continue
+        qi.state = ''
+        qi.revealed = false
+        if (qi.cfg.type === 'mc') { qi.pick = qi.cfg.answer; qi.submit() }
+        else if (qi.cfg.type === 'multi') { qi.multi = {}; qi.cfg.answers.forEach(i => { qi.multi[i] = true }); qi.submit() }
+        else { qi.text = qi.cfg.accept[0]; qi.submit() }
+        total++
+        if (qi.state === 'right') right++
+      }
+      return { right, total }
+    })
+    check(scored.total > 40 && scored.right === scored.total, `every battery item marks its correct answer (${scored.right}/${scored.total})`)
+  }
+
   /* ------------------------------------------------------------ cheatsheet */
   console.log('\n▸ cheatsheet')
   await page.goto(`${BASE}/#/cheatsheet`, { waitUntil: 'load' })

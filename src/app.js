@@ -39,6 +39,7 @@ import { renderCalculator } from './views/calculator.js'
 import { renderCheatsheet } from './views/cheatsheet.js'
 import { renderInsights } from './views/insights.js'
 import { renderSettings } from './views/settings.js'
+import registerSettings from './components/settings.js'
 
 /* ------------------------------------------------------------------- Alpine */
 const PLUGINS = [mask, intersect, persist, resize, collapse, focus, morph, anchor, sort]
@@ -55,6 +56,7 @@ registerCredCalc(Alpine)
 registerBondCalc(Alpine)
 registerVarSim(Alpine)
 registerStatsTool(Alpine)
+registerSettings(Alpine)
 
 /* --------------------------------------------------------------- shell data */
 const SIZES = ['s', 'm', 'l', 'xl']

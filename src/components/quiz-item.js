@@ -6,8 +6,15 @@
 import { mini, norm, num, esc } from '../lib/utils.js'
 
 export default function registerQuizItem(Alpine) {
-  Alpine.data('quizItem', () => ({
+  /**
+   * `x-data="quizItem"` reads the item from `data-q` (the module views render it
+   * server-side). `x-data="quizItem(json)"` passes it as an argument — needed
+   * wherever the item comes from an `x-for` loop, because a *bound* `data-q` is
+   * applied after `init()` has already run.
+   */
+  Alpine.data('quizItem', (json) => ({
     cfg: null,
+    _json: typeof json === 'string' ? json : '',
     question: '',
     optHtml: [],
     pick: null,
@@ -19,7 +26,10 @@ export default function registerQuizItem(Alpine) {
     letters: ['A', 'B', 'C', 'D', 'E', 'F'],
 
     init() {
-      this.cfg = JSON.parse(this.$el.dataset.q)
+      this.$el.__qi = this      // test hook used by tests/e2e.mjs and tests/standalone.mjs
+      const raw = this._json || this.$el.dataset.q
+      if (!raw) { this.cfg = null; return }
+      this.cfg = JSON.parse(raw)
       this.question = mini(this.cfg.q)
       this.optHtml = this.cfg.options.map(o => mini(o))
       const st = this.$store.course.engine.data.quiz[this.cfg.key]

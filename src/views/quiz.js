@@ -18,6 +18,7 @@ export function renderQuiz() {
       answer: typeof q.answer === 'number' ? q.answer : null,
       answers: q.answers || [],
       accept: q.accept || [],
+      tol: q.tol,
       why: q.why,
       distractors: q.distractors || {},
       skill: q.skill || ''
@@ -67,7 +68,7 @@ export function renderQuiz() {
       </div>
 
       <template x-for="it in visible" :key="it.key">
-        <div x-data="quizItem" :data-q="JSON.stringify(it)"></div>
+        <div class="q" x-data="quizItem(JSON.stringify(it))" x-cloak></div>
       </template>
 
       <div class="card" style="background:#101a30">

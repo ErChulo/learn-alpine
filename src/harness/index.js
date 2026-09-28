@@ -105,15 +105,29 @@ function afterInit(cb) {
   } else listen()
 }
 
-/** Load vendored plugin builds first, then the core (which self-starts). */
+/**
+ * Load vendored plugin builds first, then the core (which self-starts).
+ *
+ * In the single-file build there is no `vendor/` folder to point at, so the
+ * parent page hands us the sources in `window.__LA_VENDOR_INLINE` and we append
+ * them as inline scripts — same effect, no filesystem, still offline.
+ */
 function injectFallback(done) {
   const files = ['mask.min.js', 'intersect.min.js', 'persist.min.js', 'resize.min.js', 'collapse.min.js',
                  'focus.min.js', 'morph.min.js', 'anchor.min.js', 'sort.min.js', 'cdn.min.js']
+  const inline = window.__LA_VENDOR_INLINE || null
   let i = 0
   const next = () => {
     if (i >= files.length) return done()
+    const file = files[i++]
+    const source = inline && inline[file]
     const s = document.createElement('script')
-    s.src = opts.vendor + '/' + files[i++]
+    if (typeof source === 'string') {
+      s.textContent = source            // inline scripts run synchronously on append
+      document.head.appendChild(s)
+      return next()
+    }
+    s.src = opts.vendor + '/' + file
     s.onload = next
     s.onerror = next
     document.head.appendChild(s)

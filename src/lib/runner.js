@@ -66,11 +66,18 @@ export class Workshop {
   srcdoc(code) {
     const harness = HARNESS()
     const opts = JSON.stringify({ mode: this.mode, vendor: this.vendor })
+    // The single-file build has no vendor/ folder on disk; it publishes the
+    // vendored Alpine sources on the parent window instead. Only raw mode needs
+    // them, so only raw mode pays the weight.
+    const inlineVendor = (this.mode === 'raw' && window.__LA_VENDOR_INLINE)
+      ? `<script>window.__LA_VENDOR_INLINE = ${JSON.stringify(window.__LA_VENDOR_INLINE).replace(/<\//g, '<\\/')};<\/script>`
+      : ''
     return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>${BASE_CSS}</style>
 <script>window.__LA_OPTS = ${opts};</script>
 <script>${harness}</script>
+${inlineVendor}
 </head><body>
 ${code}
 <script>window.__LA && window.__LA.start && window.__LA.start();</script>

@@ -5,11 +5,14 @@
   "description": "An exhaustive, exercise-driven course for Alpine.js 3.17 — with an actuarial flavour, dark mode, and a mastery score.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "build:watch": "node scripts/build.mjs --watch",
+    "build:standalone": "node scripts/build.mjs && node scripts/standalone.mjs",
+    "serve": "node scripts/serve.mjs",
     "test": "node tests/run.mjs",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "test:all": "node tests/run.mjs && node tests/e2e.mjs"
   },
   "keywords": [
     "alpinejs",

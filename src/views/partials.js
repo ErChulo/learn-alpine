@@ -116,6 +116,7 @@ export function quizItem(q, moduleId, index) {
     answer: typeof q.answer === 'number' ? q.answer : null,
     answers: q.answers || [],
     accept: q.accept || [],
+    tol: q.tol,
     why: q.why,
     distractors: q.distractors || {},
     skill: q.skill || ''
