@@ -14408,7 +14408,7 @@ This is what the persist plugin does for you in module 12 \u2014 here you build 
     goal: "Reach any node or scope you need \u2014 the current element, the component root, a named node, or a unique id.",
     intro: `Alpine gives you five handles into the DOM and its scopes:
 
-**\`x-ref\` / \`$refs\`** name a node so you can drive it directly (focus, measure, read). **\`$el\`** is the element the expression is running on. **\`$root\`** is the nearest component root \u2014 the element carrying \`x-data\`. **\`$data\`** is that root's data object. **\`$id\` / \`x-id\`** generate ids that are unique per component, which is how you wire labels, tooltips and \`aria-*\` attributes without hand-rolling ids.`,
+**\`x-ref\` / \`$refs\`** name a node so you can drive it directly (focus, measure, read). **\`$el\`** is the element the expression is running on. **\`$root\`** is the nearest component root \u2014 the element carrying \`x-data\`, so you use it for \`$root.dataset.\u2026\` and friends. **\`$data\`** is the scope your expression runs in, inherited scopes included. **\`$id\` / \`x-id\`** generate ids that are unique per component, which is how you wire labels, tooltips and \`aria-*\` attributes without hand-rolling ids.`,
     skills: ["x-ref", "$refs", "$el", "$root", "$data", "$id", "x-id"],
     docRefs: [
       { label: "x-ref", url: "https://alpinejs.dev/directives/ref" },
