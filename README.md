@@ -86,7 +86,7 @@ git push -u origin main
 
 | command | what it proves |
 |---|---|
-| `npm test` | browser-free audit: 18 modules, ≥3 units each, quiz sanity, actuarial identities, 100 reference rows |
+| `npm test` | browser-free audit: 18 modules, ≥3 units each, quiz sanity, actuarial identities, 109 reference rows |
 | `npm run test:e2e` | Playwright: every published solution passes every task of every unit, every marked quiz answer scores, every route renders |
 | `node tests/standalone.mjs` | the single-file build really works from `file://` — including the raw-mode lessons |
 | `node tests/pages.mjs` | the course works when served from a subpath, with no 404s (GitHub Pages layout) |

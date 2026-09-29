@@ -24,7 +24,7 @@ const group = name => console.log(`\n▸ ${name}`)
 
 /* ------------------------------------------------------------ 1. structure */
 group('content integrity')
-const ACTION_KEYS = ['click', 'dblclick', 'hover', 'focus', 'blur', 'type', 'select', 'key', 'scrollIntoView', 'dispatch', 'resize', 'drag', 'mark', 'wait']
+const ACTION_KEYS = ['click', 'dblclick', 'hover', 'focus', 'blur', 'type', 'set', 'select', 'key', 'scrollIntoView', 'dispatch', 'resize', 'drag', 'mark', 'wait']
 const needValue = ['text', 'textNumber', 'textMatch', 'textHas', 'textNotHas', 'count', 'countAtLeast', 'countAtMost', 'listLong', 'listUnique', 'attr', 'attrHas', 'klass', 'noKlass', 'styleIs', 'htmlHas', 'code', 'noCode', 'storage', 'storageGone', 'prop', 'list', 'listSet', 'listHas']
 
 ok(modules.length === 18, 'the curriculum has 18 modules', `got ${modules.length}`)
@@ -56,7 +56,7 @@ for (const m of modules) {
       ok(!!t.skill, `${at}.${t.id}: tagged with a skill`)
       ok(Array.isArray(t.checks) && t.checks.length >= 1, `${at}.${t.id}: has checks`)
       for (const c of t.checks || []) {
-        ok(checkKinds.includes(c.kind) || (c.kind === 'custom' && CUSTOM[c.name]),
+        ok(checkKinds.includes(c.kind) || (c.kind === 'custom' && CUSTOM[c.name]) || CUSTOM[c.kind],
           `${at}.${t.id}: check kind "${c.kind}"${c.name ? '/' + c.name : ''} exists`)
         if (needValue.includes(c.kind) && c.value === undefined && c.pattern === undefined && !['list', 'listSet', 'listHas'].includes(c.kind)) {
           ok(false, `${at}.${t.id}: "${c.kind}" needs a value or pattern`)
@@ -73,6 +73,26 @@ for (const m of modules) {
           if ('dispatch' in a) ok(!!a.event, `${at}.${t.id}: dispatch action names its event`)
           if ('drag' in a) ok(!!a.to, `${at}.${t.id}: drag action names its target`)
           if ('type' in a) ok(a.value !== undefined, `${at}.${t.id}: type action needs a value`)
+        }
+      }
+    }
+  }
+
+  /* markup lint: an x-data attribute cut short by a stray quote silently kills
+     the whole component, so every x-data expression must compile. */
+  for (const u of m.units) {
+    const at = `${where}.${u.id}`
+    for (const [field, src] of [['starter', u.starter], ['solution', u.solution]]) {
+      if (typeof src !== 'string') continue
+      for (const re of [/x-data\s*=\s*"([^"]*)"/g, /x-data\s*=\s*'([^']*)'/g]) {
+        let hit
+        while ((hit = re.exec(src))) {
+          const expr = hit[1]
+          try { new Function('return ' + expr); ok(true, '') }
+          catch (e) {
+            ok(false, `${at}: ${field} x-data expression does not compile`,
+              `${JSON.stringify(expr.slice(-48))} — ${e.message}`)
+          }
         }
       }
     }

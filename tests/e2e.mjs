@@ -32,8 +32,8 @@ const browser = await chromium.launch({ headless: !process.env.HEADED })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 
 const consoleErrors = []
-page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()) })
-page.on('pageerror', e => consoleErrors.push('pageerror: ' + e.message + ' :: ' + String(e.stack || '').split('\n').slice(1, 4).join(' | ')))
+page.on('console', m => { if (m.type() === 'error') consoleErrors.push(`[${new URL(page.url()).hash || '/'}] ${m.text()}`) })
+page.on('pageerror', e => consoleErrors.push(`[${new URL(page.url()).hash || '/'}] ` + 'pageerror: ' + e.message + ' :: ' + String(e.stack || '').split('\n').slice(1, 4).join(' | ')))
 
 try {
   /* ------------------------------------------------------------ dashboard */

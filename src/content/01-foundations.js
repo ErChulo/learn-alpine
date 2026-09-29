@@ -273,6 +273,95 @@ Requirements: the sum assured must be an editable input (start at 250,000); the 
           ]
         }
       ]
+    },
+
+    {
+      id: 'e2',
+      kind: 'exercise',
+      mode: 'raw',
+      title: 'Exercise — boot the pricing page yourself',
+      objective: 'Write the install tag and the registration window, and prove the lifecycle order.',
+      scenario: `The pricing page is one static file that whoever is on duty uploads by hand, so the bootstrapping is written out in full: Alpine comes from a deferred script tag, and a small inline script registers the \`pricingPage\` component **before** the page initialises. QA wants the lifecycle visible — the page must keep a log of \`alpine:init\`, the component's own \`init()\` and \`alpine:initialized\` in the order they happen, and show a READY badge only once the component is live.`,
+      brief: `Elements: \`data-testid="quote"\` (\`quote\`, formatted to 2 decimals — start at 42.5), \`data-testid="badge"\` (\`READY\` once the component has initialised, \`booting\` before), \`data-testid="log"\` (the three lifecycle events joined with \`' → '\`), and \`data-testid="source"\` (a one-line note saying where the provider came from).\n\nIn production the install tag points at the CDN (\`https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\`); this sandbox serves the same build at \`vendor/alpine/cdn.min.js\`, and a sandbox with neither falls back to its own copy — so keep the tag, and keep the registration inside an \`alpine:init\` listener.`,
+      starter: `<div x-data="{ quote: 0, ready: false }">
+  <p>quote <b data-testid="quote"></b></p>
+  <p><b data-testid="badge"></b></p>
+  <p>lifecycle <code data-testid="log"></code></p>
+  <p data-testid="source"></p>
+</div>`,
+      solution: `<script defer src="vendor/alpine/cdn.min.js"></script>
+
+<div x-data="pricingPage">
+  <p>quote <b data-testid="quote" x-text="quote.toFixed(2)"></b></p>
+  <p><b data-testid="badge" x-text="ready ? 'READY' : 'booting'"></b></p>
+  <p>lifecycle <code data-testid="log"></code></p>
+  <p data-testid="source"></p>
+</div>
+
+<script>
+  const log = []
+  const write = () => { document.querySelector('[data-testid="log"]').textContent = log.join(' → ') }
+  const mark = name => { if (!log.includes(name)) { log.push(name); write() } }
+
+  document.addEventListener('alpine:init', () => {
+    mark('alpine:init')
+
+    Alpine.data('pricingPage', () => ({
+      quote: 42.5,
+      ready: false,
+      init() {
+        mark('component:init')
+        this.ready = true
+        document.querySelector('[data-testid="source"]').textContent = 'pricingPage was registered during alpine:init'
+        write()
+      }
+    }))
+
+    write()
+  })
+
+  document.addEventListener('alpine:initialized', () => {
+    mark('alpine:initialized')
+    write()
+  })
+</script>`,
+      hints: [
+        'The install tag is deferred, so it executes after the parsed markup — which is exactly why the registration must live in an `alpine:init` listener rather than at the top level of the script.',
+        'Push each event into an array as it happens and re-render the log after every push; the component init hook runs during the initialisation pass, between the two document events.',
+        'Set `ready` in `init()` instead of hard-coding `READY`, so the badge is evidence that the component really initialised.'
+      ],
+      tasks: [
+        {
+          id: 't1',
+          skill: 'installation',
+          text: 'Alpine must be loaded by a deferred install tag and the component registered during `alpine:init`, so the badge reads READY.',
+          checks: [
+            { kind: 'code', pattern: "cdn\.min\.js" },
+            { kind: 'code', pattern: "defer" },
+            { kind: 'code', pattern: "alpine:init" },
+            { kind: 'text', selector: '[data-testid="badge"]', value: 'READY' }
+          ]
+        },
+        {
+          id: 't2',
+          skill: 'lifecycle',
+          text: 'The lifecycle must be logged in order: `alpine:init`, then the component init, then `alpine:initialized`.',
+          checks: [
+            { kind: 'code', pattern: "alpine:initialized" },
+            { kind: 'text', selector: '[data-testid="log"]', value: 'alpine:init → component:init → alpine:initialized' }
+          ]
+        },
+        {
+          id: 't3',
+          skill: 'Alpine.data',
+          text: 'The provider must be a real `Alpine.data` component: it carries the quote and says where it came from.',
+          checks: [
+            { kind: 'code', pattern: "Alpine\\.data\\('pricingPage'" },
+            { kind: 'text', selector: '[data-testid="quote"]', value: '42.50' },
+            { kind: 'textHas', selector: '[data-testid="source"]', value: 'registered during alpine:init' }
+          ]
+        }
+      ]
     }
   ],
   quiz: [

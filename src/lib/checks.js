@@ -293,6 +293,25 @@ const CHECKS = {
     if (!el) return [false, `nothing matches ${c.selector}`]
     return [!el.classList.contains(c.value), el.classList.contains(c.value) ? `class "${c.value}" is still applied` : 'class removed']
   },
+  /** Computed style, numeric: strictly between lo and hi (mid-flight transition state). */
+  styleBetween: (c, ctx) => {
+    const el = pick(ctx, c.selector, c.nth)
+    if (!el) return [false, `nothing matches ${c.selector}`]
+    const raw = ctx.win.getComputedStyle(el)[c.prop]
+    const v = parseFloat(raw)
+    if (!Number.isFinite(v)) return [false, `${c.prop} is "${raw}" — not a number to compare`]
+    const ok = v > (c.lo ?? -Infinity) && v < (c.hi ?? Infinity)
+    return [ok, ok ? `${c.prop} = ${Math.round(v * 1000) / 1000} (between ${c.lo} and ${c.hi})` : `${c.prop} = ${Math.round(v * 1000) / 1000}, expected between ${c.lo} and ${c.hi}`]
+  },
+  /** Computed style matched against a regex (transform matrices, transform-origin, …). */
+  styleMatch: (c, ctx) => {
+    const el = pick(ctx, c.selector, c.nth)
+    if (!el) return [false, `nothing matches ${c.selector}`]
+    const raw = String(ctx.win.getComputedStyle(el)[c.prop])
+    const re = new RegExp(c.pattern, c.flags || '')
+    const ok = re.test(raw)
+    return [ok, ok ? `${c.prop} = ${raw} matches` : `${c.prop} = "${raw}" does not match /${c.pattern}/`]
+  },
   styleIs: (c, ctx) => {
     const el = pick(ctx, c.selector, c.nth)
     if (!el) return [false, `nothing matches ${c.selector}`]
@@ -325,6 +344,7 @@ const CHECKS = {
     const ok = active === el || (active && el.contains(active))
     return [ok, ok ? 'has focus' : `focus is on ${active ? (active.tagName.toLowerCase() + (active.id ? '#' + active.id : '')) : 'nothing'}`]
   },
+
   htmlHas: (c, ctx) => {
     const el = pick(ctx, c.selector, c.nth)
     if (!el) return [false, `nothing matches ${c.selector}`]
@@ -368,7 +388,60 @@ const CHECKS = {
   }
 }
 
+/** Shared geometry for x-anchor checks: is `selector` below/above its reference (`of`)? */
+function orientation(c, ctx, want) {
+  const ref = pick(ctx, c.of)
+  const el = pick(ctx, c.selector, c.nth)
+  if (!ref) return [false, `nothing matches the reference ${c.of}`]
+  if (!el) return [false, `nothing matches ${c.selector}`]
+  const r = ref.getBoundingClientRect(), b = el.getBoundingClientRect()
+  if (!b.height && !b.width) return [false, 'the anchored element has no size — is it still hidden?']
+  const sharesColumn = b.left <= r.right && b.right >= r.left
+  const isBelow = b.top >= r.bottom - 2
+  const isAbove = b.bottom <= r.top + 2
+  const ok = sharesColumn && (want === 'below' ? isBelow : want === 'above' ? isAbove : (isBelow || isAbove))
+  const how = isBelow ? `below (${Math.round(b.top - r.bottom)}px gap)` : isAbove ? `above (${Math.round(r.top - b.bottom)}px gap)` : 'overlapping the trigger'
+  return [ok, ok
+    ? `laid out ${how}`
+    : `the element is ${how}; expected it ${want} the trigger`]
+}
+
 const CUSTOM = {
+  /** Authoring aid: dump the live state around a check (focus, scroll lock, visibility). */
+
+  below: (c, ctx) => orientation(c, ctx, 'below'),
+  above: (c, ctx) => orientation(c, ctx, 'above'),
+  /** Either directly above or directly below the reference — for placements that may legitimately flip. */
+  stacked: (c, ctx) => orientation(c, ctx, 'stacked'),
+  /** .no-style anchoring: the learner applied position + coordinates in their own x-bind:style. */
+  styledByHand: (c, ctx) => {
+    const el = pick(ctx, c.selector, c.nth)
+    if (!el) return [false, `nothing matches ${c.selector}`]
+    if (concealed(el, ctx.win)) return [false, 'the anchored element is not visible yet — open it first']
+    const pos = el.style.position, top = el.style.top, left = el.style.left
+    const px = v => /^-?[\d.]+px$/.test(v)
+    const ok = (pos === 'absolute' || pos === 'fixed') && px(top) && px(left)
+    return [ok, ok
+      ? `your expression applied position:${pos}, top:${top}, left:${left}`
+      : `inline style is position:${pos || 'unset'}, top:${top || 'unset'}, left:${left || 'unset'} — with .no-style you must apply the coordinates yourself`]
+  },
+  /** The $anchor readout must describe where the anchored element really sits. */
+  anchorMatches: (c, ctx) => {
+    const el = pick(ctx, c.selector, c.nth)
+    const out = pick(ctx, c.readout)
+    if (!el) return [false, `nothing matches ${c.selector}`]
+    if (!out) return [false, `nothing matches the readout ${c.readout}`]
+    const m = /x=(-?\d+)\s*y=(-?\d+)/.exec(out.textContent.replace(/\s+/g, ' '))
+    if (!m) return [false, `the readout "${out.textContent.trim()}" is not "x=… y=…"`]
+    const x = Number(m[1]), y = Number(m[2])
+    const parent = el.offsetParent || ctx.doc.body
+    const pr = parent.getBoundingClientRect(), r = el.getBoundingClientRect()
+    const dx = Math.abs(r.left - pr.left - x), dy = Math.abs(r.top - pr.top - y)
+    const ok = dx <= 4 && dy <= 4
+    return [ok, ok
+      ? `readout x=${x} y=${y} matches where the element actually sits`
+      : `readout says x=${x} y=${y} but the element sits ${Math.round(r.left - pr.left)},${Math.round(r.top - pr.top)} from its offset parent`]
+  },
   /** Nodes marked with {mark:'sel'} earlier: still the *same* DOM nodes? (x-for :key, morph) */
   marked: (c, ctx) => {
     const all = pickAll(ctx, c.selector)
@@ -418,6 +491,15 @@ const CUSTOM = {
     return [ok, ok ? `${c.attr}="${av}" matches ${c.attr2 || c.attr}="${bv}"` : `${c.attr}="${av}" vs ${c.attr2 || c.attr}="${bv}" — they must be identical`]
   },
   /** Two elements must render different text (uniqueness proofs: $id, keys). */
+  /** Two elements must render exactly the same text (for "did it move?" proofs). */
+  sameText: (c, ctx) => {
+    const a = pick(ctx, c.selector, c.nth)
+    const b = pick(ctx, c.selector2, c.nth2 ?? 0)
+    if (!a || !b) return [false, `could not find ${!a ? c.selector : c.selector2}`]
+    const av = norm(a.textContent), bv = norm(b.textContent)
+    const ok = !!av && av === bv
+    return [ok, ok ? `both render "${av}"` : `"${av}" vs "${bv}" — they must match`]
+  },
   differentText: (c, ctx) => {
     const a = pick(ctx, c.selector, c.nth)
     const b = pick(ctx, c.selector2, c.nth2 ?? 0)
@@ -465,7 +547,7 @@ export async function runChecks(ctx, specs, { settle = 40 } = {}) {
       }
       if (Array.isArray(c.do)) { for (const a of c.do) await act(ctx, a) }
       if (settle) await new Promise(r => ctx.win.setTimeout(r, settle))
-      const fn = CHECKS[c.kind]
+      const fn = CHECKS[c.kind] || CUSTOM[c.kind]
       if (!fn) { status = 'fail'; detail = `unknown check kind "${c.kind}"` }
       else {
         const [ok, why] = fn(c, ctx)

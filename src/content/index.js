@@ -24,14 +24,20 @@ import m09 from './09-handles.js'
 import m10 from './10-store.js'
 import m11 from './11-components.js'
 import m12 from './12-plugins-persist.js'
-import m13 from './13-stub.js'
-import m14 from './14-stub.js'
-import m15 from './15-stub.js'
-import m16 from './16-stub.js'
-import m17 from './17-stub.js'
-import m18 from './18-stub.js'
+import m13 from './13-plugins-layout.js'
+import m14 from './14-plugins-focus-anchor.js'
+import m15 from './15-transitions.js'
+import m16 from './16-async-morph.js'
+import m17 from './17-extending.js'
+import m18 from './18-reactivity.js'
 
 const raw = [m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15, m16, m17, m18]
+
+
+
+
+
+
 
 
 

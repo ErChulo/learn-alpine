@@ -10638,15 +10638,15 @@ ${expression ? 'Expression: "' + expression + '"\n\n' : ""}`, el);
     return { factors: f, latest, age, ultimates, ibnr, totalIBNR: ibnr.reduce((a, b) => a + b, 0) };
   };
   var bornhuetterFerguson = (t = triangle, aPrioriLR = 0.65, premium2 = [1500, 1560, 1620, 1690, 1750]) => {
-    const cl9 = chainLadder(t);
-    const maxLag = cl9.factors.length;
-    const reportPct = t.rows.map((r) => 1 / cl9.factors.slice(r.length - 1).reduce((a, b) => a * b, 1));
-    const ultimates = t.rows.map((r, k2) => cl9.latest[k2] + aPrioriLR * premium2[k2] * (1 - reportPct[k2]));
+    const cl11 = chainLadder(t);
+    const maxLag = cl11.factors.length;
+    const reportPct = t.rows.map((r) => 1 / cl11.factors.slice(r.length - 1).reduce((a, b) => a * b, 1));
+    const ultimates = t.rows.map((r, k2) => cl11.latest[k2] + aPrioriLR * premium2[k2] * (1 - reportPct[k2]));
     return {
       reportPct,
       aPrioriUltimate: premium2.map((p) => aPrioriLR * p),
       ultimates,
-      ibnr: ultimates.map((u, k2) => u - cl9.latest[k2])
+      ibnr: ultimates.map((u, k2) => u - cl11.latest[k2])
     };
   };
   var credibility = {
@@ -11055,6 +11055,96 @@ Requirements: the sum assured must be an editable input (start at 250,000); the 
             text: "Prove the sheet is reactive: type 500,000 into the sum-assured input and the single premium must become exactly double.",
             checks: [
               { kind: "textNumber", selector: '[data-testid="single"]', value: Number((Ar * 5e5).toFixed(2)), tol: 0.5, do: [{ type: "input[type=number]", value: "500000" }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        mode: "raw",
+        title: "Exercise \u2014 boot the pricing page yourself",
+        objective: "Write the install tag and the registration window, and prove the lifecycle order.",
+        scenario: `The pricing page is one static file that whoever is on duty uploads by hand, so the bootstrapping is written out in full: Alpine comes from a deferred script tag, and a small inline script registers the \`pricingPage\` component **before** the page initialises. QA wants the lifecycle visible \u2014 the page must keep a log of \`alpine:init\`, the component's own \`init()\` and \`alpine:initialized\` in the order they happen, and show a READY badge only once the component is live.`,
+        brief: `Elements: \`data-testid="quote"\` (\`quote\`, formatted to 2 decimals \u2014 start at 42.5), \`data-testid="badge"\` (\`READY\` once the component has initialised, \`booting\` before), \`data-testid="log"\` (the three lifecycle events joined with \`' \u2192 '\`), and \`data-testid="source"\` (a one-line note saying where the provider came from).
+
+In production the install tag points at the CDN (\`https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\`); this sandbox serves the same build at \`vendor/alpine/cdn.min.js\`, and a sandbox with neither falls back to its own copy \u2014 so keep the tag, and keep the registration inside an \`alpine:init\` listener.`,
+        starter: `<div x-data="{ quote: 0, ready: false }">
+  <p>quote <b data-testid="quote"></b></p>
+  <p><b data-testid="badge"></b></p>
+  <p>lifecycle <code data-testid="log"></code></p>
+  <p data-testid="source"></p>
+</div>`,
+        solution: `<script defer src="vendor/alpine/cdn.min.js"><\/script>
+
+<div x-data="pricingPage">
+  <p>quote <b data-testid="quote" x-text="quote.toFixed(2)"></b></p>
+  <p><b data-testid="badge" x-text="ready ? 'READY' : 'booting'"></b></p>
+  <p>lifecycle <code data-testid="log"></code></p>
+  <p data-testid="source"></p>
+</div>
+
+<script>
+  const log = []
+  const write = () => { document.querySelector('[data-testid="log"]').textContent = log.join(' \u2192 ') }
+  const mark = name => { if (!log.includes(name)) { log.push(name); write() } }
+
+  document.addEventListener('alpine:init', () => {
+    mark('alpine:init')
+
+    Alpine.data('pricingPage', () => ({
+      quote: 42.5,
+      ready: false,
+      init() {
+        mark('component:init')
+        this.ready = true
+        document.querySelector('[data-testid="source"]').textContent = 'pricingPage was registered during alpine:init'
+        write()
+      }
+    }))
+
+    write()
+  })
+
+  document.addEventListener('alpine:initialized', () => {
+    mark('alpine:initialized')
+    write()
+  })
+<\/script>`,
+        hints: [
+          "The install tag is deferred, so it executes after the parsed markup \u2014 which is exactly why the registration must live in an `alpine:init` listener rather than at the top level of the script.",
+          "Push each event into an array as it happens and re-render the log after every push; the component init hook runs during the initialisation pass, between the two document events.",
+          "Set `ready` in `init()` instead of hard-coding `READY`, so the badge is evidence that the component really initialised."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "installation",
+            text: "Alpine must be loaded by a deferred install tag and the component registered during `alpine:init`, so the badge reads READY.",
+            checks: [
+              { kind: "code", pattern: "cdn.min.js" },
+              { kind: "code", pattern: "defer" },
+              { kind: "code", pattern: "alpine:init" },
+              { kind: "text", selector: '[data-testid="badge"]', value: "READY" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "lifecycle",
+            text: "The lifecycle must be logged in order: `alpine:init`, then the component init, then `alpine:initialized`.",
+            checks: [
+              { kind: "code", pattern: "alpine:initialized" },
+              { kind: "text", selector: '[data-testid="log"]', value: "alpine:init \u2192 component:init \u2192 alpine:initialized" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.data",
+            text: "The provider must be a real `Alpine.data` component: it carries the quote and says where it came from.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.data\\('pricingPage'" },
+              { kind: "text", selector: '[data-testid="quote"]', value: "42.50" },
+              { kind: "textHas", selector: '[data-testid="source"]', value: "registered during alpine:init" }
             ]
           }
         ]
@@ -16266,104 +16356,3545 @@ Typical jobs: reveal a lazily built table, fetch page two, count an impression.`
     ]
   };
 
-  // src/content/13-stub.js
-  var stub_default = {
+  // src/content/13-plugins-layout.js
+  var cl8 = chainLadder(triangle);
+  var ROWS2 = triangle.years.map((y, i) => ({ year: y, ibnr: Number(cl8.ibnr[i].toFixed(1)) })).filter((r) => r.ibnr > 0);
+  var TOTAL2 = Number(ROWS2.reduce((n, r) => n + r.ibnr, 0).toFixed(1));
+  var TOP3_PCT = Number((100 * ROWS2.slice(0, 3).reduce((n, r) => n + r.ibnr, 0) / TOTAL2).toFixed(1));
+  var PRIORITISED = [ROWS2[ROWS2.length - 1], ...ROWS2.slice(0, ROWS2.length - 1)];
+  var TOP3_AFTER_PCT = Number((100 * PRIORITISED.slice(0, 3).reduce((n, r) => n + r.ibnr, 0) / TOTAL2).toFixed(1));
+  var RATES4 = [0.03, 0.045, 0.055];
+  var ADUE4 = RATES4.map((r) => Number(life.aDueTemp(45, 15, r).toFixed(4)));
+  var FACTORS = cl8.factors.map((value, i) => ({ age: 15 + i * 5, value: Number(value.toFixed(4)) }));
+  var AGES2 = FACTORS.map((f) => String(f.age));
+  var LAST_AGE = FACTORS[FACTORS.length - 1].age;
+  var plugins_layout_default = {
     id: "m13",
     num: 13,
     title: "Plugins II \u2014 layout and sizing",
-    blurb: "collapse, resize, sort.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    blurb: "resize reacts to how big things are; sort lets people reorder them by dragging.",
+    goal: "Build interfaces that adapt to their own size, and lists whose order is data you own.",
+    intro: `Two plugins about things that change shape.
+
+**resize** wraps the browser's \`ResizeObserver\`: put \`x-resize\` on an element and its expression runs whenever that element is resized, with \`$width\` and \`$height\` in hand. \`.document\` watches the whole document instead, \`.viewport\` watches the visual viewport (the part not hidden by mobile browser chrome).
+
+**sort** wraps SortableJS: \`x-sort\` on a container plus \`x-sort:item="key"\` on its children makes them draggable, and the handler you pass receives the item's key and its new position, so the new order can be written back into your data.`,
+    skills: ["x-resize", "$width / $height", "x-sort", "x-sort:item", "x-sort:handle", ".ghost"],
+    docRefs: [
+      { label: "resize", url: "https://alpinejs.dev/plugins/resize" },
+      { label: "sort", url: "https://alpinejs.dev/plugins/sort" },
+      { label: "ResizeObserver (MDN)", url: "https://developer.mozilla.org/en-US/docs/Web/API/Resize_Observer_API" }
+    ],
+    mastery: [
+      "React to an element's own size with `x-resize` and `$width` / `$height`",
+      "Use `.document` and `.viewport` when the page, not the element, is what changes",
+      "Make a list sortable with `x-sort` + `x-sort:item`, handles, ghosts and groups",
+      "Write the sort handler so the new order lands back in your data"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "x-resize: reacting to your own size",
+        objective: "Read $width and $height whenever an element changes size.",
+        brief: `\`x-resize="\u2026"\` runs its expression **once on setup** and again after every resize, with \`$width\` and \`$height\` available inside. Nothing polls; the browser's \`ResizeObserver\` tells Alpine when layout actually changed.
+
+That makes it the right tool for "this panel is too narrow for a table" decisions, for sticky headers that need their real height, and for charts that must redraw at their true size.`,
+        example: {
+          code: `<div x-data="{ w: 0 }" x-resize="w = Math.round($width)">
+  <p x-text="w + 'px wide'"></p>
+</div>`,
+          note: "The first run happens as soon as the element has been laid out, so `w` is never stuck at 0."
+        },
+        starter: `<div x-data="{ w: 0 }">
+  <div data-testid="frame" style="width:300px">
+    <div data-testid="box">
+      <p>observed: <b data-testid="w" x-text="w"></b> px</p>
+    </div>
+  </div>
+</div>`,
+        solution: `<div x-data="{ w: 0, h: 0, hits: 0, setWidth(px) { this.$refs.frame.style.width = px + 'px' } }">
+  <div data-testid="frame" x-ref="frame" style="width:300px">
+    <div data-testid="box" x-resize="w = Math.round($width), h = Math.round($height), hits++">
+      <p>observed: <b data-testid="w" x-text="w"></b> \xD7 <b data-testid="h" x-text="h"></b> px after <b data-testid="hits" x-text="hits"></b> reading(s)</p>
+    </div>
+  </div>
+  <div class="row">
+    <button data-testid="narrow" @click="setWidth(240)">narrow to 240px</button>
+    <button data-testid="wide" @click="setWidth(520)">widen to 520px</button>
+  </div>
+</div>`,
+        hints: [
+          "The expression runs with `$width` / `$height` already in scope \u2014 nothing is passed in.",
+          "`Math.round($width)` keeps the display stable: the observer reports fractional pixels.",
+          "Resizing the *frame* is enough \u2014 the inner div inherits the new width and the observer fires."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-resize",
+            text: "On load the observed width must already be the frame's 300px (the first reading happens without anyone resizing anything), and the counter must show at least one reading.",
+            checks: [
+              { kind: "textNumber", selector: '[data-testid="w"]', value: 300, tol: 2 },
+              { kind: "textMatch", selector: '[data-testid="hits"]', pattern: "^[1-9]\\d*$" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-resize",
+            text: "`narrow` must shrink the frame to 240px and the observer must follow; `wide` must take it to 520px.",
+            checks: [
+              { kind: "textNumber", selector: '[data-testid="w"]', value: 240, tol: 2, do: [{ click: '[data-testid="narrow"]' }, { wait: 250 }] },
+              { kind: "textNumber", selector: '[data-testid="w"]', value: 520, tol: 2, do: [{ click: '[data-testid="wide"]' }, { wait: 250 }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "Resize-driven layout, and watching the document",
+        objective: "Switch layout on measured width instead of a window media query.",
+        brief: `A CSS media query asks *how wide is the window*. \`x-resize\` asks *how wide is this element* \u2014 the honest question when the element lives in a resizable panel, a sidebar or a split view.
+
+Use \`x-resize.document\` when the whole page is what changes (sticky bars, "is there room for the full table"), and \`x-resize.viewport\` on mobile when browser chrome scrolls away.`,
+        example: {
+          code: `<div x-data="{ w: 0, get big() { return this.w >= 480 } }" x-resize="w = Math.round($width)">
+  <p x-show="big">Full table fits here.</p>
+  <p x-show="!big">Compact summary only.</p>
+</div>`,
+          note: "The same component behaves correctly in a narrow column and in a wide one."
+        },
+        starter: `<div x-data="{ w: 0, rows: [] }">
+  <div data-testid="panel" style="width:300px">
+    <p>panel: <b data-testid="panelW" x-text="w"></b> px \xB7 mode <b data-testid="mode" x-text="'compact'"></b></p>
+  </div>
+</div>`,
+        solution: `<div x-data="{
+  w: 0, docW: 0,
+  rows: ${sq(ROWS2)},
+  get mode() { return this.w >= 480 ? 'full' : 'compact' },
+  get total() { return this.rows.reduce((n, r) => n + r.ibnr, 0).toFixed(1) },
+  setWidth(px) { this.$refs.panel.style.width = px + 'px' }
+}"
+     x-resize.document="docW = Math.round($width)">
+  <div data-testid="panel" x-ref="panel" style="width:300px" x-resize="w = Math.round($width)">
+    <p>panel: <b data-testid="panelW" x-text="w"></b> px \xB7 mode <b data-testid="mode" x-text="mode"></b> \xB7 document <b data-testid="docW" x-text="docW"></b> px</p>
+  </div>
+  <button data-testid="widen" @click="setWidth(520)">widen the panel</button>
+  <button data-testid="narrow" @click="setWidth(300)">narrow the panel</button>
+  <table data-testid="full" x-show="mode === 'full'">
+    <thead><tr><th>accident year</th><th>IBNR</th></tr></thead>
+    <tbody>
+      <template x-for="r in rows" :key="r.year">
+        <tr data-testid="row"><td data-testid="year" x-text="r.year"></td><td x-text="r.ibnr.toFixed(1)"></td></tr>
+      </template>
+    </tbody>
+  </table>
+  <p data-testid="compact" x-show="mode === 'compact'">Compact view \u2014 IBNR <span x-text="total"></span> across <span x-text="rows.length"></span> accident years.</p>
+</div>`,
+        hints: [
+          "Put `x-resize` on the panel itself, and make `mode` a getter over `w`.",
+          "`x-resize.document` belongs on the component root and reads the document width.",
+          "Bind both variants with `x-show` and let the measured width choose the winner \u2014 the checks ask which one is really visible."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-resize",
+            text: `At 300px the panel must be in compact mode: the summary line visible, the table out of the picture \u2014 and the document readout must hold a real number.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="mode"]', value: "compact" },
+              { kind: "shown", selector: '[data-testid="compact"]' },
+              { kind: "hidden", selector: '[data-testid="full"]' },
+              { kind: "textMatch", selector: '[data-testid="docW"]', pattern: "^\\d{2,5}$" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-resize",
+            text: `Widening the panel to 520px must switch it to the full table: ${ROWS2.length} rows, each carrying its own accident year.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="mode"]', value: "full", do: [{ click: '[data-testid="widen"]' }, { wait: 250 }] },
+              { kind: "shown", selector: '[data-testid="full"]' },
+              { kind: "count", selector: '[data-testid="row"]', value: ROWS2.length },
+              { kind: "list", selector: '[data-testid="year"]', values: ROWS2.map((r) => String(r.year)) }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-resize",
+            text: "It must also react to a resize nobody clicked: forcing the panel to 560px, then back to 320px, must flip the mode both ways.",
+            checks: [
+              { kind: "text", selector: '[data-testid="mode"]', value: "full", do: [{ resize: '[data-testid="panel"]', width: 560 }, { wait: 250 }] },
+              { kind: "text", selector: '[data-testid="mode"]', value: "compact", do: [{ resize: '[data-testid="panel"]', width: 320 }, { wait: 250 }] },
+              { kind: "code", pattern: "x-resize\\.document" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "x-sort: making a list draggable",
+        objective: "Wire a sortable list and receive the new order in code.",
+        brief: `\`x-sort\` goes on the **container**; each child you want draggable carries \`x-sort:item="key"\`. That key is the identity that reaches your handler \u2014 usually an id, not the visible text.
+
+The handler receives \`(item, position)\`, or you can write the expression inline and use \`$item\` and \`$position\`. Add \`x-sort:handle\` to a small grip so the rest of the row stays clickable, \`x-sort:ignore\` on interactive children so a click does not start a drag, and \`.ghost\` to leave a faded copy behind instead of a hole. Matching \`x-sort:group="name"\` on two containers lets rows move between them, and on a cross-list drag **only the destination list's handler runs**.
+
+Alpine delegates the dragging to SortableJS, so nothing fires until a real pointer drag finishes. This sandbox cannot fake a browser drag (SortableJS uses the browser's own HTML5 drag session), which is why the checks here verify the **wiring in your markup** and the **handler contract** \u2014 the same method a drag calls at the end.`,
+        example: {
+          code: `<ul x-sort.ghost="move">
+  <template x-for="f in factors" :key="f.age">
+    <li x-sort:item="f.age">
+      <span x-sort:handle>\u283F</span> <span x-text="f.age"></span>
+      <button x-sort:ignore @click="inspect(f)">details</button>
+    </li>
+  </template>
+</ul>
+
+move(item, position) { \u2026 }   <!-- called with (key, newIndex) -->`,
+          note: 'The key and the destination index are all a "save the new order" handler needs.'
+        },
+        starter: `<div x-data="{ factors: ${sq(FACTORS)}, log: [] }">
+  <ul data-testid="list" style="list-style:none;padding:0">
+    <template x-for="f in factors" :key="f.age">
+      <li :data-age="f.age"><span x-text="f.age"></span> \u2014 <span x-text="f.value"></span></li>
+    </template>
+  </ul>
+</div>`,
+        solution: `<div x-data="{
+  factors: ${sq(FACTORS)},
+  log: [],
+  move(item, position) {
+    const i = this.factors.findIndex(f => String(f.age) === String(item))
+    if (i < 0) return
+    const [hit] = this.factors.splice(i, 1)
+    this.factors.splice(position, 0, hit)
+    this.log.push(item + '@' + position)
+  },
+  prioritiseLast() { this.move(this.factors[this.factors.length - 1].age, 0) }
+}">
+  <p class="muted">handler log: <b data-testid="log" x-text="log.join(' | ') || 'nothing yet'"></b></p>
+  <ul data-testid="list" x-sort.ghost="move" style="list-style:none;padding:0">
+    <template x-for="f in factors" :key="f.age">
+      <li x-sort:item="f.age" :data-age="f.age" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
+        <span x-sort:handle style="cursor:grab">\u283F</span>
+        <b data-testid="age" x-text="f.age"></b> \u2014 factor <span x-text="f.value"></span>
+        <button x-sort:ignore data-testid="inspect" @click="log.push('inspected ' + f.age)">details</button>
+      </li>
+    </template>
+  </ul>
+  <button data-testid="prioritise" @click="prioritiseLast()">prioritise the last age</button>
+  <p>order: <b data-testid="order" x-text="factors.map(f => f.age).join(',')"></b></p>
+</div>`,
+        hints: [
+          '`x-sort="move"` goes on the `<ul>`; every `<li>` gets `x-sort:item="f.age"`.',
+          "The handler removes the item from its old index and re-inserts it at `position` \u2014 that is the whole contract.",
+          "A button can call the same handler, which is how the checks drive it: dragging and clicking must end in one method."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-sort",
+            text: "The list must be sortable with a ghost preview, every row must be an `x-sort:item` whose key is the age, and each row must have a handle.",
+            checks: [
+              { kind: "code", pattern: "x-sort\\.ghost" },
+              { kind: "code", pattern: 'x-sort:item="f\\.age"' },
+              { kind: "code", pattern: "x-sort:handle" },
+              { kind: "prop", selector: '[data-age="' + LAST_AGE + '"]', prop: "_x_sort_key", value: String(LAST_AGE) },
+              { kind: "list", selector: '[data-testid="age"]', values: AGES2 }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-sort",
+            text: `Calling the handler the way a drop would \u2014 \`prioritise\` moves age ${LAST_AGE} to position 0 \u2014 must reorder the list and record \`${LAST_AGE}@0\`.`,
+            checks: [
+              { kind: "list", selector: '[data-testid="age"]', values: AGES2 },
+              { kind: "text", selector: '[data-testid="log"]', value: LAST_AGE + "@0", do: [{ click: '[data-testid="prioritise"]' }, { wait: 150 }] },
+              { kind: "list", selector: '[data-testid="age"]', values: [String(LAST_AGE), ...AGES2.slice(0, -1)] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-sort",
+            text: "The `details` button must be excluded from dragging with `x-sort:ignore` \u2014 and must still work when clicked, proving `ignore` only blocks drags, not clicks.",
+            checks: [
+              { kind: "code", pattern: "x-sort:ignore" },
+              { kind: "textHas", selector: '[data-testid="log"]', value: "inspected " + LAST_AGE, do: [{ click: '[data-testid="inspect"]' }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 a review queue you can reorder",
+        objective: "Let the actuary drag accident years into review priority, and keep the numbers honest.",
+        scenario: `Reserve reviews run top-down: only the first three positions in the queue are investigated this quarter. Chain-ladder IBNR by accident year: ${ROWS2.map((r) => `${r.year}: ${r.ibnr.toFixed(1)}`).join(" \xB7 ")} (total ${TOTAL2} on the current basis). In accident-year order the top three carry ${TOP3_PCT} % of the IBNR; putting the newest year first lifts that to ${TOP3_AFTER_PCT} %. The queue must be draggable, and the figures must follow the order.`,
+        brief: `Build the queue from ${sq(ROWS2)}. Elements: the sortable container \`data-testid="queue"\` (ghost preview), one \`data-testid="item"\` per year carrying \`data-year\` and an \`x-sort:item\` key, the year in \`data-testid="year"\`, a drag handle per row, \`data-testid="top3"\` reading \`2022, 2023, 2024\`, \`data-testid="share"\` reading the reviewed share with one decimal, and a \`data-testid="urgent"\` button that calls the same handler to move ${ROWS2[ROWS2.length - 1].year} to position 0.`,
+        starter: `<div x-data="{ years: ${sq(ROWS2)}, inScope: 3 }">
+</div>`,
+        solution: `<div x-data="{
+  years: ${sq(ROWS2)},
+  inScope: 3,
+  get total() { return this.years.reduce((n, y) => n + y.ibnr, 0) },
+  get top() { return this.years.slice(0, this.inScope) },
+  get share() { return (100 * this.top.reduce((n, y) => n + y.ibnr, 0) / this.total).toFixed(1) },
+  get topText() { return this.top.map(y => y.year).join(', ') },
+  move(item, position) {
+    const i = this.years.findIndex(y => String(y.year) === String(item))
+    if (i < 0) return
+    const [hit] = this.years.splice(i, 1)
+    this.years.splice(position, 0, hit)
+  },
+  urgent() { this.move(this.years[this.years.length - 1].year, 0) }
+}">
+  <p>this quarter: <b data-testid="top3" x-text="topText"></b> \xB7 carrying <b data-testid="share" x-text="share"></b> % of the IBNR</p>
+  <ul data-testid="queue" x-sort.ghost="move" style="list-style:none;padding:0;margin:0">
+    <template x-for="y in years" :key="y.year">
+      <li data-testid="item" x-sort:item="y.year" :data-year="y.year" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
+        <span x-sort:handle style="cursor:grab">\u283F</span>
+        <b data-testid="year" x-text="y.year"></b> \u2014 IBNR <span x-text="y.ibnr.toFixed(1)"></span>
+        <span class="chip" x-show="top.includes(y)">in scope</span>
+      </li>
+    </template>
+  </ul>
+  <button data-testid="urgent" @click="urgent()">move ${ROWS2[ROWS2.length - 1].year} to the top</button>
+</div>`,
+        hints: [
+          "The sort handler is the `move(item, position)` you wrote in the step; `urgent()` just calls it with position 0.",
+          "`top` and `share` are getters over the array, so reordering updates the sentence by itself.",
+          `In accident-year order the share is ${TOP3_PCT} %; after prioritising ${ROWS2[ROWS2.length - 1].year} it must read ${TOP3_AFTER_PCT} %.`
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-sort",
+            text: `In accident-year order the queue lists ${ROWS2.map((r) => r.year).join(", ")} and the top three carry ${TOP3_PCT} %.`,
+            checks: [
+              { kind: "list", selector: '[data-testid="year"]', values: ROWS2.map((r) => String(r.year)) },
+              { kind: "text", selector: '[data-testid="top3"]', value: ROWS2.slice(0, 3).map((r) => r.year).join(", ") },
+              { kind: "text", selector: '[data-testid="share"]', value: String(TOP3_PCT) }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-sort",
+            text: `Moving ${ROWS2[ROWS2.length - 1].year} to the top must reorder the rows, bring it into scope and lift the reviewed share to ${TOP3_AFTER_PCT} % \u2014 the same call a drag makes.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="share"]', value: String(TOP3_AFTER_PCT), do: [{ click: '[data-testid="urgent"]' }, { wait: 200 }] },
+              { kind: "list", selector: '[data-testid="year"]', values: PRIORITISED.map((r) => String(r.year)) },
+              { kind: "text", selector: '[data-testid="top3"]', value: PRIORITISED.slice(0, 3).map((r) => String(r.year)).join(", ") }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-sort",
+            text: "The wiring must be complete for a real user: ghost preview, the year as each row's sort key, and a handle on every row so the row itself stays clickable.",
+            checks: [
+              { kind: "code", pattern: "x-sort\\.ghost=" },
+              { kind: "code", pattern: 'x-sort:item="y\\.year"' },
+              { kind: "prop", selector: '[data-year="' + ROWS2[0].year + '"]', prop: "_x_sort_key", value: String(ROWS2[0].year) },
+              { kind: "countAtLeast", selector: "[x-sort\\:handle]", value: ROWS2.length }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 a valuation card that fits wherever it is put",
+        objective: "Combine measured element width with a real decision, plus a viewport readout.",
+        scenario: `The same valuation card is used on a full-width dashboard and in a narrow side panel. Past 460px it shows the annuity-due table for ${RATES4.map((r) => `${(r * 100).toFixed(1)} %`).join(" / ")}; below that it shows the annuity for the selected basis only, because a three-column table is unreadable at that size. It must also report the visual viewport width, since on tablets the card sits beside a keyboard.`,
+        brief: `Elements: \`data-testid="card"\` (the measured element, starting at 320px), \`data-testid="w"\`, \`data-testid="mode"\` (\`wide\` / \`narrow\`), \`data-testid="table"\` (three rows, only in wide mode), \`data-testid="single"\` (the one-line summary, only in narrow mode), \`data-testid="viewport"\`, and the controls \`data-testid="grow"\` (520px) and \`data-testid="shrink"\` (320px). Threshold: **460px**.`,
+        starter: `<div x-data="{ w: 0, rate: 0.045 }">
+  <div data-testid="card" style="width:320px"></div>
+</div>`,
+        solution: `<div x-data="{
+  w: 0, vw: 0, rate: ${RATES4[1]},
+  rates: ${JSON.stringify(RATES4)},
+  adue: ${JSON.stringify(ADUE4)},
+  get mode() { return this.w >= 460 ? 'wide' : 'narrow' },
+  get index() { return this.rates.indexOf(this.rate) },
+  grow() { this.$refs.card.style.width = '520px' },
+  shrink() { this.$refs.card.style.width = '320px' }
+}">
+  <p>card <b data-testid="w" x-text="w"></b> px \xB7 <b data-testid="mode" x-text="mode"></b> \xB7 viewport <b data-testid="viewport" x-text="vw"></b> px</p>
+  <div data-testid="card" x-ref="card" style="width:320px" x-resize="w = Math.round($width)" x-resize.viewport="vw = Math.round($width)">
+    <table data-testid="table" x-show="mode === 'wide'">
+      <thead><tr><th>basis</th><th>\xE4<sub>45:15</sub></th></tr></thead>
+      <tbody>
+        <template x-for="(r, i) in rates" :key="r">
+          <tr data-testid="row"><td x-text="(r * 100).toFixed(1) + ' %'"></td><td x-text="adue[i].toFixed(4)"></td></tr>
+        </template>
+      </tbody>
+    </table>
+    <p data-testid="single" x-show="mode === 'narrow'">\xE4<sub>45:15</sub> at <span x-text="(rate * 100).toFixed(1)"></span> % = <b x-text="adue[index].toFixed(4)"></b></p>
+    <div class="row">
+      <button data-testid="grow" @click="grow()">grow the card</button>
+      <button data-testid="shrink" @click="shrink()">shrink the card</button>
+    </div>
+  </div>
+</div>`,
+        hints: [
+          "Two resize directives on one element: `x-resize` for the card, `x-resize.viewport` for the visual viewport.",
+          "`mode` is a getter over `w`; bind both variants with `x-show` and let the width choose.",
+          `The wide table must show ${ADUE4.join(" / ")} for ${RATES4.map((r) => (r * 100).toFixed(1) + " %").join(" / ")}.`
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-resize",
+            text: "At 320px the card must be `narrow`: the single-basis line visible, the table hidden, and both the card width and the viewport width reported as numbers.",
+            checks: [
+              { kind: "textNumber", selector: '[data-testid="w"]', value: 320, tol: 2 },
+              { kind: "text", selector: '[data-testid="mode"]', value: "narrow" },
+              { kind: "shown", selector: '[data-testid="single"]' },
+              { kind: "hidden", selector: '[data-testid="table"]' },
+              { kind: "textMatch", selector: '[data-testid="viewport"]', pattern: "^\\d{2,5}$" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-resize",
+            text: `Growing the card past the threshold must switch it to \`wide\` with all three bases listed (${ADUE4.join(", ")}), and shrinking must take it back.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="mode"]', value: "wide", do: [{ click: '[data-testid="grow"]' }, { wait: 250 }] },
+              { kind: "shown", selector: '[data-testid="table"]' },
+              { kind: "list", selector: '[data-testid="row"] td:last-child', values: ADUE4.map((v) => v.toFixed(4)) },
+              { kind: "text", selector: '[data-testid="mode"]', value: "narrow", do: [{ click: '[data-testid="shrink"]' }, { wait: 250 }] },
+              { kind: "hidden", selector: '[data-testid="table"]' }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-resize",
+            text: "It must react to a resize it did not cause: forcing the card to 480px from outside must give `wide`, and 400px must give `narrow`.",
+            checks: [
+              { kind: "text", selector: '[data-testid="mode"]', value: "wide", do: [{ resize: '[data-testid="card"]', width: 480 }, { wait: 250 }] },
+              { kind: "text", selector: '[data-testid="w"]', value: "480" },
+              { kind: "text", selector: '[data-testid="mode"]', value: "narrow", do: [{ resize: '[data-testid="card"]', width: 400 }, { wait: 250 }] }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "x-resize",
+        q: 'Inside `x-resize="label = $width"` \u2014 when does that expression run?',
+        options: [
+          "Only when the user resizes the window",
+          "Once when the element is measured, then after every change of its size",
+          "On every animation frame",
+          "Only if you also bind the element's width"
+        ],
+        answer: 1,
+        why: "The observer reports the current size immediately, then on every layout change of that element \u2014 so the initial read is never missing.",
+        distractors: { 0: "Resizing the element itself (a panel, a split view, a collapsing sidebar) counts too." }
+      },
+      {
+        id: "q2",
+        type: "mc",
+        skill: "x-resize",
+        q: "You want to react when the whole *document* is resized, not the element carrying the directive. Which modifier?",
+        options: ["`.window`", "`.document`", "`.viewport`", "`.page`"],
+        answer: 1,
+        why: "`.document` observes the document element; `.viewport` observes the visual viewport (mobile browser chrome, on-screen keyboards).",
+        distractors: { 2: "That is a real modifier \u2014 but it tracks `window.visualViewport`, not the document." }
+      },
+      {
+        id: "q3",
+        type: "multi",
+        skill: "x-resize",
+        q: "Which are legitimate uses of the resize plugin?",
+        options: [
+          "Switching a table to a compact summary when its panel gets narrow",
+          "Redrawing a canvas chart after its container changes size",
+          "Reading an element's width once, to store in a database",
+          "Making a sticky header aware of its own height"
+        ],
+        answers: [0, 1, 3],
+        why: "It is a reactive size signal \u2014 for layout decisions and redraws. A one-off measurement is simpler with `$refs` and `getBoundingClientRect()`.",
+        distractors: { 2: "Nothing here needs an observer, and a size is rarely worth persisting." }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "x-sort",
+        q: 'With `<ul x-sort="handle">` and `<li x-sort:item="\'F3\'">`, what does `handle` receive when that row is dropped at the very top?',
+        options: ["('F3', 0)", "('F3', 1)", "(the `<li>` element, 0)", "(0, 'F3')"],
+        answer: 0,
+        why: "The handler gets the item **key** from `x-sort:item` and the new 0-based position. Inline expressions get the same pair as `$item` and `$position`.",
+        distractors: { 1: "Positions start at index 0 \u2014 the top of the list." }
+      },
+      {
+        id: "q5",
+        type: "mc",
+        skill: "x-sort",
+        q: 'Two lists share `x-sort:group="queue"`, each with its own handler. A row is dragged from list A into list B. Which handlers run?',
+        options: [
+          "Both handlers",
+          "Only list A's handler",
+          "Only list B's handler, with the item key and its new position",
+          "Neither \u2014 cross-list drags need `x-sort:config`"
+        ],
+        answer: 2,
+        why: "The destination list is the one that now owns the item, so only its handler is called.",
+        distractors: { 0: "Treating it as a remove-plus-add pair is the classic way to duplicate rows." }
+      },
+      {
+        id: "q6",
+        type: "short",
+        skill: "x-sort",
+        q: "Which directive marks a small area inside a sortable item as the only place a drag may start? Answer with the full directive name.",
+        accept: ["x-sort:handle"],
+        why: "`x-sort:handle` \u2014 the rest of the row stays free for clicks, links and inputs."
+      }
+    ]
   };
 
-  // src/content/14-stub.js
-  var stub_default2 = {
+  // src/content/14-plugins-focus-anchor.js
+  var AGES3 = [35, 40, 45, 50, 55, 60];
+  var TABLE = AGES3.map((a) => ({
+    age: a,
+    qx: Number(life.qx(a).toFixed(5)),
+    p10: Number(life.p(a, 10).toFixed(4)),
+    lx: life.lx(a)
+  }));
+  var LAST = AGES3[AGES3.length - 1];
+  var LASTROW = TABLE[TABLE.length - 1];
+  var BASES2 = [
+    { id: "vbt", label: "2015 VBT (smoker-distinct)", qx50: Number(life.qx(50).toFixed(5)) },
+    { id: "unisex", label: "Unisex annuitant table", qx50: Number((life.qx(50) * 1.12).toFixed(5)) },
+    { id: "prudential", label: "Insurer experience table", qx50: Number((life.qx(50) * 0.94).toFixed(5)) }
+  ];
+  var APPROVERS = ["R. Okonkwo (chief actuary)", "M. Lindqvist (valuation)", "S. Bhatt (audit)"];
+  var plugins_focus_anchor_default = {
     id: "m14",
     num: 14,
     title: "Plugins III \u2014 focus and anchoring",
-    blurb: "focus, anchor, component patterns.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    blurb: "x-trap and $focus keep the keyboard usable; x-anchor pins menus to whatever they belong to.",
+    goal: "Build dialogs and popovers that behave for keyboard users and stay attached to their trigger.",
+    intro: `Two plugins that protect the parts of an interface people forget to test.
+
+**focus** gives you \`x-trap\` \u2014 declare a boolean expression and, while it is true, Tab, Shift+Tab and clicks are kept inside that element, with focus returned to where it came from when the trap closes. The \`$focus\` magic exposes the small utilities underneath: \`next()\`, \`previous()\`, \`first()\`, \`last()\`, \`within()\`, \`wrap()\`, \`focusable()\`, \`focused()\`.
+
+**anchor** gives you \`x-anchor\` \u2014 pass it an element and the anchored element is positioned next to it (Floating UI underneath), flipping automatically when there is no room. \`$anchor.x\` / \`$anchor.y\` expose the coordinates so you can style it yourself.`,
+    skills: ["x-trap", ".noscroll", ".noautofocus", "$focus", "x-anchor", "$anchor", ".offset", ".no-style"],
+    docRefs: [
+      { label: "focus", url: "https://alpinejs.dev/plugins/focus" },
+      { label: "anchor", url: "https://alpinejs.dev/plugins/anchor" },
+      { label: "Floating UI", url: "https://floating-ui.com/" }
+    ],
+    mastery: [
+      "Keep focus inside a dialog with `x-trap` and give it back on close",
+      "Lock scrolling, and know that `x-trap` does not close itself on Escape",
+      "Drive focus by keyboard with the `$focus` magic and its `.wrap()` / `.within()` chain",
+      "Anchor menus and tooltips to a trigger with `x-anchor`, offsets and `$anchor`"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "x-trap: a dialog that keeps the keyboard",
+        objective: "Trap focus while a dialog is open and hand it back when it closes.",
+        brief: `\`x-trap="open"\` activates while the expression is truthy. Then:
+
+- focus moves into the element \u2014 to its first focusable child, or to a child marked \`autofocus\`, unless you add \`.noautofocus\`;
+- Tab and Shift+Tab cycle **inside** it, wrapping at both ends;
+- clicking outside does not steal focus;
+- when the trap closes, focus returns to whatever had it before, unless you add \`.noreturn\`.
+
+\`.noscroll\` freezes page scrolling while the dialog is up. And note what \`x-trap\` does *not* do: it never closes anything on Escape \u2014 that binding is yours.`,
+        example: {
+          code: `<div x-show="open" x-trap.noscroll="open" @keydown.escape="open = false">
+  <input autofocus>
+  <button @click="open = false">Done</button>
+</div>`,
+          note: "Activation happens a tick after the expression flips, so the dialog is visible before focus moves into it."
+        },
+        starter: `<div x-data="{ open: false }">
+  <p>outside the dialog: <input data-testid="pageSearch" placeholder="page search"></p>
+  <button data-testid="open" @click="open = true">open the basis dialog</button>
+  <div data-testid="dialog" x-show="open" style="border:1px solid #253253;border-radius:10px;padding:12px">
+    <h4 style="margin:0 0 8px">Change valuation basis</h4>
+    <label>basis <input data-testid="basisInput" value="2015 VBT"></label>
+    <div class="row">
+      <button data-testid="apply" @click="open = false">apply</button>
+      <button data-testid="cancel" @click="open = false">cancel</button>
+    </div>
+  </div>
+</div>`,
+        solution: `<div x-data="{ open: false, where: 'nowhere' }">
+  <p>outside the dialog: <input data-testid="pageSearch" placeholder="page search"> \xB7 keyboard is at <b data-testid="where" x-text="where"></b></p>
+  <button data-testid="open" @click="open = true">open the basis dialog</button>
+  <div data-testid="dialog" x-show="open" x-trap.noscroll="open" @keydown.escape="open = false"
+       @focusin="where = $event.target.dataset.testid || 'something else'"
+       style="border:1px solid #253253;border-radius:10px;padding:12px">
+    <h4 style="margin:0 0 8px">Change valuation basis</h4>
+    <label>basis <input data-testid="basisInput" value="2015 VBT"></label>
+    <div class="row">
+      <button data-testid="apply" @click="open = false">apply</button>
+      <button data-testid="cancel" @click="open = false">cancel</button>
+    </div>
+  </div>
+</div>`,
+        hints: [
+          "The trap belongs on the dialog element, and it should be driven by the same `open` flag as `x-show`.",
+          "`@focusin` on the dialog is enough to report which control the keyboard is on \u2014 it bubbles.",
+          'Escape must be bound by you: `@keydown.escape="open = false"`, plus `.noscroll` to freeze the page behind.'
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-trap",
+            text: "Opening the dialog must move the keyboard inside it \u2014 onto the first focusable control, the basis field \u2014 and freeze page scrolling while it is up.",
+            checks: [
+              { kind: "text", selector: '[data-testid="where"]', value: "basisInput", do: [{ el: '[data-testid="basisInput"]', key: "Escape" }, { wait: 120 }, { click: '[data-testid="open"]' }, { wait: 240 }] },
+              { kind: "focused", selector: '[data-testid="dialog"]' },
+              { kind: "styleIs", selector: "html", prop: "overflow", value: "hidden" },
+              { kind: "code", pattern: 'x-trap\\.noscroll="open"' }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-trap",
+            text: "Tab must wrap: from the last control in the dialog, the next Tab lands back on the first control inside it.",
+            checks: [
+              { kind: "focused", selector: '[data-testid="cancel"]', do: [{ el: '[data-testid="basisInput"]', key: "Escape" }, { wait: 120 }, { focus: '[data-testid="open"]' }, { click: '[data-testid="open"]' }, { wait: 220 }, { focus: '[data-testid="cancel"]' }] },
+              { kind: "text", selector: '[data-testid="where"]', value: "basisInput", do: [{ el: '[data-testid="cancel"]', key: "Tab" }, { wait: 150 }] },
+              { kind: "focused", selector: '[data-testid="dialog"]' }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-trap",
+            text: "Closing must hand the keyboard back to the button that opened it, and unfreeze scrolling.",
+            checks: [
+              { kind: "focused", selector: '[data-testid="open"]', do: [{ el: '[data-testid="basisInput"]', key: "Escape" }, { wait: 120 }, { focus: '[data-testid="open"]' }, { click: '[data-testid="open"]' }, { wait: 220 }, { click: '[data-testid="apply"]' }, { wait: 220 }] },
+              { kind: "hidden", selector: '[data-testid="dialog"]' },
+              { kind: "styleIs", selector: "html", prop: "overflow", value: "visible" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "$focus: moving the keyboard yourself",
+        objective: "Build keyboard navigation with $focus, .within() and .wrap().",
+        brief: `\`$focus\` is the toolbox behind the trap:
+
+| call | does |
+| --- | --- |
+| \`$focus.next()\` / \`previous()\` | move relative to the element that has focus |
+| \`$focus.first()\` / \`last()\` | jump to the ends |
+| \`$focus.within(el)\` | scope the search to \`el\` (your current element by default) |
+| \`$focus.wrap()\` | let \`next\`/\`previous\` roll around the ends |
+| \`$focus.focus(el)\` | focus any element, with the timing handled for you |
+| \`$focus.focusable(el)\` | is this element focusable? |
+
+The chain reads left to right: \`$focus.within($refs.rows).last()\` means "inside that container, go to the last focusable element".`,
+        example: {
+          code: `<div x-ref="rows" @keydown.right="$focus.wrap().next()" @keydown.arrowleft="$focus.wrap().previous()">
+  <button tabindex="0">35</button>
+  <button tabindex="0">40</button>
+</div>`,
+          note: "Arrow keys on the container; each child only has to be focusable."
+        },
+        starter: `<div x-data="{ ages: ${sq(AGES3)} }">
+  <div data-testid="rows">
+    <template x-for="a in ages" :key="a">
+      <button data-testid="cell" :data-age="a" x-text="a" tabindex="0"></button>
+    </template>
+  </div>
+  <button data-testid="first">first age</button>
+  <button data-testid="last">last age</button>
+</div>`,
+        solution: `<div x-data="{ ages: ${sq(AGES3)}, where: 'nothing yet' }"
+     @focusin="where = $event.target.dataset.age || where">
+  <p class="muted">keyboard is on age <b data-testid="where" x-text="where"></b></p>
+  <div data-testid="rows" x-ref="rows"
+       @keydown.right.prevent="$focus.wrap().next()"
+       @keydown.left.prevent="$focus.wrap().previous()">
+    <template x-for="a in ages" :key="a">
+      <button data-testid="cell" :data-age="a" x-text="a" tabindex="0" style="margin-right:6px"></button>
+    </template>
+  </div>
+  <div class="row">
+    <button data-testid="first" @click="$focus.within($refs.rows).first()">first age</button>
+    <button data-testid="last" @click="$focus.within($refs.rows).last()">last age</button>
+  </div>
+</div>`,
+        hints: [
+          "Bind the arrow keys on the container with `@keydown.right` and `@keydown.left`; `.prevent` stops the page scrolling.",
+          "`.wrap()` is what makes the ends of the list roll around; without it the last element goes nowhere.",
+          '`$focus.within($refs.rows).first()` scopes the jump to the row container \u2014 the buttons themselves need `tabindex="0"` (or be real buttons, as here).'
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "$focus",
+            text: "The two jump buttons must use `$focus.within($refs.rows)` scoped to the row container, and the arrow keys must use `wrap()`.",
+            checks: [
+              { kind: "code", pattern: "\\$focus\\.within\\(\\$refs\\.rows\\)\\.first\\(\\)" },
+              { kind: "code", pattern: "\\$focus\\.within\\(\\$refs\\.rows\\)\\.last\\(\\)" },
+              { kind: "code", pattern: "\\$focus\\.wrap\\(\\)\\.next\\(\\)" },
+              { kind: "code", pattern: "\\$focus\\.wrap\\(\\)\\.previous\\(\\)" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "$focus",
+            text: `"first age" must land on ${AGES3[0]} and the right arrow must walk to the next age, one press at a time.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[0]), do: [{ click: '[data-testid="first"]' }, { wait: 150 }] },
+              { kind: "focused", selector: ':is([data-age="' + AGES3[0] + '"])' },
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[1]), do: [{ el: '[data-age="' + AGES3[0] + '"]', key: "ArrowRight" }, { wait: 150 }] },
+              { kind: "focused", selector: ':is([data-age="' + AGES3[1] + '"])' },
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[2]), do: [{ el: '[data-age="' + AGES3[1] + '"]', key: "ArrowRight" }, { wait: 150 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "$focus",
+            text: `Wrap-around: the right arrow from the last age (${AGES3[AGES3.length - 1]}) must return to ${AGES3[0]}, and the left arrow from the first must jump back to the last.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[0]), do: [{ click: '[data-testid="last"]' }, { wait: 150 }, { el: '[data-age="' + AGES3[AGES3.length - 1] + '"]', key: "ArrowRight" }, { wait: 150 }] },
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[AGES3.length - 1]), do: [{ el: '[data-age="' + AGES3[0] + '"]', key: "ArrowLeft" }, { wait: 150 }] },
+              { kind: "text", selector: '[data-testid="where"]', value: String(AGES3[AGES3.length - 2]), do: [{ el: '[data-age="' + AGES3[AGES3.length - 1] + '"]', key: "ArrowLeft" }, { wait: 150 }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "x-anchor: menus that stay attached",
+        objective: "Anchor a popover to its trigger, with an offset and manual styling.",
+        brief: `\`x-anchor="$refs.trigger"\` sets the element's \`position\` and coordinates so it sits next to the trigger \u2014 **below** by default, and flipped above automatically when there is no room. Placement modifiers: \`.top\`, \`.bottom\`, \`.left\`, \`.right\`, plus \`-start\` and \`-end\` for alignment. \`.offset.8\` opens a gap; \`.noflip\` refuses to flip; \`.fixed\` uses fixed positioning so the popover escapes a scrolling or \`overflow: hidden\` ancestor.
+
+With \`.no-style\` Alpine sets *no* styles at all, and you read \`$anchor.x\` / \`$anchor.y\` yourself. Those coordinates live in the coordinate space of the active strategy: with \`.fixed\` you must write \`position: fixed\` yourself, or the numbers land in the wrong place.`,
+        example: {
+          code: `<button x-ref="trigger" @click="open = !open">basis</button>
+<div x-show="open" x-anchor.bottom-start.offset.6="$refs.trigger">
+  menu\u2026
+</div>`,
+          note: "One directive replaces a pile of measurement code."
+        },
+        starter: `<div x-data="{ open: false }" style="position:relative">
+  <button data-testid="trigger" x-ref="trigger" @click="open = !open">choose basis</button>
+  <div data-testid="menu" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:8px">
+    <button data-testid="item">2015 VBT</button>
+  </div>
+</div>`,
+        solution: `<div x-data="{ open: false, readout: '' }" style="position:relative">
+  <button data-testid="trigger" x-ref="trigger" @click="open = !open">choose basis</button>
+
+  <div data-testid="menu" x-show="open" x-anchor.bottom-start.offset.6="$refs.trigger"
+       style="border:1px solid #253253;border-radius:8px;padding:8px;background:#0e1424">
+    <button data-testid="item" x-text="'${BASES2[0].label}'"></button>
+    <button data-testid="item" x-text="'${BASES2[1].label}'"></button>
+  </div>
+
+  <p data-testid="coords" class="muted" style="margin:0" x-anchor.no-style.right.offset.6="$refs.trigger"
+     x-bind:style="{ position: 'absolute', margin: 0, top: Math.round($anchor.y) + 'px', left: Math.round($anchor.x) + 'px' }"
+     x-text="'x=' + Math.round($anchor.x) + ' y=' + Math.round($anchor.y)"></p>
+
+  <div style="height:120px;overflow:hidden;border:1px dashed #253253;margin-top:80px">
+    <button data-testid="fixedTrigger" x-ref="fixedTrigger" @click="open = !open">in a clipped box</button>
+    <div data-testid="fixedMenu" x-show="open" x-anchor.fixed.no-style="$refs.fixedTrigger"
+         x-bind:style="{ position: 'fixed', top: Math.round($anchor.y) + 'px', left: Math.round($anchor.x) + 'px' }"
+         style="border:1px solid #253253;border-radius:8px;padding:8px;background:#0e1424">escapes the clip</div>
+  </div>
+</div>`,
+        hints: [
+          'Placement and offset are modifiers: `x-anchor.bottom-start.offset.6="$refs.trigger"`.',
+          "The `$anchor` magic belongs to the element carrying `x-anchor` \u2014 on any other element it throws, so the readout lives on an anchored element of its own.",
+          "For the clipped box, `.fixed` plus `.no-style` means writing `position: fixed` from the anchor coordinates yourself."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-anchor",
+            text: "Opening must place the menu below its trigger, in the same column, offset by the 6px you asked for \u2014 with the two bases listed.",
+            checks: [
+              { kind: "code", pattern: 'x-anchor\\.bottom-start\\.offset\\.6="\\$refs\\.trigger"' },
+              { kind: "shown", selector: '[data-testid="menu"]', do: [{ click: '[data-testid="trigger"]' }, { wait: 200 }] },
+              { kind: "below", selector: '[data-testid="menu"]', of: '[data-testid="trigger"]' },
+              { kind: "list", selector: '[data-testid="item"]', values: [BASES2[0].label, BASES2[1].label] }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "$anchor",
+            text: "With `.no-style`, the popped-up element inside the clipped box must still be positioned by your own `x-bind:style` \u2014 and it must report `position: fixed`, which is what lets it escape the clip.",
+            checks: [
+              { kind: "styledByHand", selector: '[data-testid="fixedMenu"]', do: [{ click: '[data-testid="trigger"]' }, { wait: 140 }, { click: '[data-testid="fixedTrigger"]' }, { wait: 240 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "$anchor",
+            text: "The `$anchor` readout \u2014 an element anchored by hand with `.no-style` \u2014 must show real coordinates, and those numbers must be where the element actually sits.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="coords"]', pattern: "^x=\\d+ y=\\d+$" },
+              { kind: "styledByHand", selector: '[data-testid="coords"]' },
+              { kind: "anchorMatches", selector: '[data-testid="coords"]', readout: '[data-testid="coords"]' }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 a reserve-approval dialog",
+        objective: "A keyboard-complete approval dialog: trapped focus, Escape to close, focus returned, status recorded.",
+        scenario: `An IBNR reserve movement of +12.4 % needs sign-off. The dialog takes a note, an approver from ${sq(APPROVERS)}, and an approve-or-reject decision. Auditors check this screen by keyboard only, so: focus must land on the note when it opens, Escape must close it (the trap will not do that for you), Tab must cycle inside while it is up, page scrolling must be frozen, and focus must come back to the "escalate" button afterwards with the decision recorded.`,
+        brief: `Elements: \`data-testid="escalate"\` (the trigger), \`data-testid="modal"\` (trapped, scroll-locked), \`data-testid="note"\` (first focusable), \`data-testid="approver"\` (a \`<select>\` of the three approvers), \`data-testid="approve"\`, \`data-testid="reject"\`, \`data-testid="status"\` (fallback text \`awaiting sign-off\` while nothing has been decided), and \`data-testid="where"\` reporting the id of the focused control.`,
+        starter: `<div x-data="{ open: false, note: '', approver: 0, status: 'awaiting sign-off' }">
+  <button data-testid="escalate" @click="open = true">escalate the reserve movement</button>
+  <div data-testid="modal" x-show="open">
+    <textarea data-testid="note" placeholder="why is the movement so large?"></textarea>
+    <select data-testid="approver"><option>approver\u2026</option></select>
+    <button data-testid="approve">approve</button>
+    <button data-testid="reject">reject</button>
+  </div>
+</div>`,
+        solution: `<div x-data="{
+  open: false, note: '', approver: 0, status: 'awaiting sign-off', where: 'nowhere',
+  approvers: ${sq(APPROVERS)},
+  decide(verdict) {
+    this.status = verdict + ' by ' + this.approvers[this.approver]
+    this.open = false
+  }
+}">
+  <p>decision: <b data-testid="status" x-text="status"></b> \xB7 keyboard is on <b data-testid="where" x-text="where"></b></p>
+  <button data-testid="escalate" @click="open = true">escalate the reserve movement</button>
+  <div data-testid="modal" x-show="open" x-trap.noscroll="open" @keydown.escape="open = false"
+       @focusin="where = $event.target.dataset.testid || where"
+       style="border:1px solid #253253;border-radius:10px;padding:12px;background:#0e1424">
+    <h4 style="margin:0 0 8px">Reserve movement +12.4 % \u2014 sign-off</h4>
+    <textarea data-testid="note" x-model="note" placeholder="why is the movement so large?"></textarea>
+    <label>approver
+      <select data-testid="approver" x-model.number="approver">
+        <template x-for="(who, i) in approvers" :key="who">
+          <option :value="i" x-text="who"></option>
+        </template>
+      </select>
+    </label>
+    <div class="row">
+      <button data-testid="approve" @click="decide('approved')">approve</button>
+      <button data-testid="reject" @click="decide('rejected')">reject</button>
+    </div>
+  </div>
+</div>`,
+        hints: [
+          'Same trap recipe as the step: `x-trap.noscroll="open"` on the modal, plus `@keydown.escape`.',
+          "The first focusable in the dialog is the textarea, so opening should put the keyboard there with no extra work.",
+          "The decision buttons close the dialog; the trap then returns focus to `escalate` on its own."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-trap",
+            text: "Opening must trap the keyboard on the note field, freeze scrolling, and leave the status untouched at `awaiting sign-off`.",
+            checks: [
+              { kind: "text", selector: '[data-testid="where"]', value: "note", do: [{ el: '[data-testid="note"]', key: "Escape" }, { wait: 120 }, { click: '[data-testid="escalate"]' }, { wait: 240 }] },
+              { kind: "shown", selector: '[data-testid="modal"]' },
+              { kind: "text", selector: '[data-testid="status"]', value: "awaiting sign-off" },
+              { kind: "styleIs", selector: "html", prop: "overflow", value: "hidden" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-trap",
+            text: `Tab from the last control must wrap back to the note. Then Escape must close the modal and give the keyboard back to \`escalate\` with nothing decided.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="where"]', value: "note", do: [{ el: '[data-testid="note"]', key: "Escape" }, { wait: 140 }, { focus: '[data-testid="escalate"]' }, { click: '[data-testid="escalate"]' }, { wait: 220 }, { focus: '[data-testid="reject"]' }, { el: '[data-testid="reject"]', key: "Tab" }, { wait: 150 }] },
+              { kind: "focused", selector: '[data-testid="escalate"]', do: [{ el: '[data-testid="note"]', key: "Escape" }, { wait: 140 }, { focus: '[data-testid="escalate"]' }, { click: '[data-testid="escalate"]' }, { wait: 240 }, { focus: '[data-testid="note"]' }, { el: '[data-testid="note"]', key: "Escape" }, { wait: 260 }] },
+              { kind: "hidden", selector: '[data-testid="modal"]' },
+              { kind: "text", selector: '[data-testid="status"]', value: "awaiting sign-off" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-trap",
+            text: `Approving records the decision and closes the dialog: the status must read \`approved by ${APPROVERS[1]}\` and the keyboard must be back on \`escalate\`.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="status"]', value: "approved by " + APPROVERS[1], do: [
+                { el: '[data-testid="note"]', key: "Escape" },
+                { wait: 140 },
+                { focus: '[data-testid="escalate"]' },
+                { click: '[data-testid="escalate"]' },
+                { wait: 220 },
+                { type: '[data-testid="note"]', value: "IBNR +12.4 %: late-reported large claims" },
+                { el: '[data-testid="approver"]', select: "1" },
+                { click: '[data-testid="approve"]' },
+                { wait: 200 }
+              ] },
+              { kind: "focused", selector: '[data-testid="escalate"]' },
+              { kind: "hidden", selector: '[data-testid="modal"]' }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 qx tooltips on a mortality table",
+        objective: "A tooltip per row, anchored to the cell you clicked, opening above and escaping a clipped panel.",
+        scenario: `The mortality table lists ages ${AGES3.join(", ")} with their \`q\u2093\`. Reviewers want the surrounding evidence \u2014 \`l\u2093\` and \u2081\u2080p\u2093 \u2014 as a tooltip pinned to the age cell they clicked. Rows near the bottom of a short, clipped panel must still show their tooltip whole, which is why one variant uses fixed positioning with its own coordinates.`,
+        brief: `Build from ${sq(TABLE)}. Elements: one \`data-testid="row"\` per age with \`data-testid="age"\` and a click target \`data-testid="cell"\`; \`data-testid="tooltip"\` anchored **above** its row with a 6px offset; inside it, \`data-testid="lx"\` and \`data-testid="p10"\`; \`data-testid="close"\` to dismiss. The second, clipped panel (fixed height, \`overflow:hidden\`) carries \`data-testid="clipTrigger"\` and \`data-testid="clipTip"\` using fixed positioning from the anchor coordinates.`,
+        starter: `<div x-data="{ sel: null, rows: ${sq(TABLE)} }">
+  <div data-testid="rows"></div>
+</div>`,
+        solution: `<div x-data="{ sel: null, rows: ${sq(TABLE)} }">
+  <div data-testid="rows">
+    <template x-for="r in rows" :key="r.age">
+      <div data-testid="row" :data-age="r.age" style="display:flex;gap:12px;align-items:center;padding:6px 0">
+        <button data-testid="cell" :id="'age-' + r.age" @click="sel = (sel === r.age ? null : r.age)" x-text="'age ' + r.age"></button>
+        <span x-text="'q\u2093 ' + r.qx.toFixed(5)"></span>
+        <div data-testid="tooltip" x-show="sel === r.age" x-anchor.top.offset.6="document.getElementById('age-' + r.age)"
+             style="border:1px solid #253253;border-radius:8px;padding:8px;background:#0e1424;min-width:190px">
+          <b>age <span x-text="r.age"></span></b>
+          <div>l\u2093 <span data-testid="lx" x-text="r.lx"></span></div>
+          <div>\u2081\u2080p\u2093 <span data-testid="p10" x-text="r.p10.toFixed(4)"></span></div>
+          <button data-testid="close" @click="sel = null">close</button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <div data-testid="clip" style="height:90px;overflow:hidden;border:1px dashed #253253;position:relative;margin-top:40px">
+    <button data-testid="clipTrigger" x-ref="clipTrigger" @click="sel = sel === -1 ? null : -1">rates behind the fold</button>
+    <div data-testid="clipTip" x-show="sel === -1" x-anchor.fixed.no-style="$refs.clipTrigger"
+         x-bind:style="{ position: 'fixed', top: Math.round($anchor.y) + 'px', left: Math.round($anchor.x) + 'px' }"
+         style="border:1px solid #253253;border-radius:8px;padding:8px;background:#0e1424">q\u2085\u2080 = ${life.qx(50).toFixed(5)}</div>
+  </div>
+</div>`,
+        hints: [
+          "An `x-ref` inside a template loop ends up pointing at the last row, so anchor by id instead: `x-anchor=\"document.getElementById('age-' + r.age)\"` \u2014 a documented pattern.",
+          "`.top` places the tooltip above the cell; `.offset.6` keeps a 6px gap.",
+          `For the clipped panel, \`.fixed\` + \`.no-style\` + your own \`x-bind:style\` is the combination that survives \`overflow:hidden\`.`
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-anchor",
+            text: `All ${TABLE.length} ages must be listed, and clicking the cell for age ${LAST} must open a tooltip above that row carrying l\u2093 = ${LASTROW.lx} and \u2081\u2080p\u2093 = ${LASTROW.p10.toFixed(4)}.`,
+            checks: [
+              { kind: "count", selector: '[data-testid="row"]', value: TABLE.length },
+              { kind: "shown", selector: '[data-age="' + LAST + '"] [data-testid="tooltip"]', do: [{ click: '[data-age="' + LAST + '"] [data-testid="cell"]' }, { wait: 240 }] },
+              { kind: "above", selector: '[data-age="' + LAST + '"] [data-testid="tooltip"]', of: '[data-age="' + LAST + '"]' },
+              { kind: "text", selector: '[data-age="' + LAST + '"] [data-testid="lx"]', value: String(LASTROW.lx) },
+              { kind: "text", selector: '[data-age="' + LAST + '"] [data-testid="p10"]', value: LASTROW.p10.toFixed(4) }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "$anchor",
+            text: "The tooltip must close again \u2014 `close` dismisses it and it disappears from the layout entirely (no stale panel left behind).",
+            checks: [
+              { kind: "hidden", selector: '[data-age="' + LAST + '"] [data-testid="tooltip"]', do: [{ click: '[data-age="' + LAST + '"] [data-testid="cell"]' }, { wait: 200 }, { click: '[data-age="' + LAST + '"] [data-testid="close"]' }, { wait: 200 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "$anchor",
+            text: "In the clipped panel the tip must come up with fixed positioning and real coordinates, and it must still be laid out below its trigger.",
+            checks: [
+              { kind: "styledByHand", selector: '[data-testid="clipTip"]', do: [{ click: '[data-testid="clipTrigger"]' }, { wait: 200 }] },
+              { kind: "stacked", selector: '[data-testid="clipTip"]', of: '[data-testid="clipTrigger"]' }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "x-trap",
+        q: 'A dialog has `x-trap="open"`. The user presses Escape. What happens?',
+        options: [
+          "The trap deactivates and the dialog closes",
+          "Nothing \u2014 `x-trap` never deactivates on its own; you bind Escape yourself",
+          "The trap deactivates but the dialog stays open",
+          "Alpine clicks the first button inside the trap"
+        ],
+        answer: 1,
+        why: 'The trap handles Tab, Shift+Tab, outside clicks and focus return. Escape is deliberately left to you (`@keydown.escape="open = false"`).',
+        distractors: {
+          0: 'The trap has no idea that Escape means "close" \u2014 it would have to guess which element to click.',
+          2: "It does not deactivate at all, so nothing is returned and nothing closes."
+        }
+      },
+      {
+        id: "q2",
+        type: "multi",
+        skill: "x-trap",
+        q: "Which are `x-trap` modifiers?",
+        options: [".noscroll", ".noautofocus", ".noreturn", ".inert"],
+        answers: [0, 1, 2, 3],
+        why: "All four: freeze scrolling, do not move focus in on activation, do not return focus on deactivation, and make everything outside the trap inert.",
+        distractors: {}
+      },
+      {
+        id: "q3",
+        type: "mc",
+        skill: "$focus",
+        q: "Inside a table, you want the right-arrow key to move focus to the next row and roll from the bottom back to the top. Which expression?",
+        options: [
+          "`$focus.next()`",
+          "`$focus.wrap().next()`",
+          "`$focus.within($refs.rows).next()`",
+          "`$focus.focus($focus.getNext())`"
+        ],
+        answer: 1,
+        why: "`.wrap()` makes `next()` roll around the last element; add `.within($refs.rows)` too when the search should be scoped to the table.",
+        distractors: { 0: "Without `wrap()` the last row is the end of the road." }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "x-anchor",
+        q: "Where do you use `$anchor`?",
+        options: [
+          "Anywhere in the same `x-data` component",
+          "Inside the element carrying `x-anchor`, to read `$anchor.x` / `$anchor.y`",
+          "Only on the `document.documentElement`",
+          "In the `x-anchor` expression itself, before positioning happens"
+        ],
+        answer: 1,
+        why: "The magic belongs to the anchored element \u2014 it reports where that element ended up.",
+        distractors: {
+          0: "A magic is scoped to the element that owns it, not to the whole component.",
+          3: "In the expression the positioning has not happened yet; `$anchor` describes the result, so it is read inside the anchored element."
+        }
+      },
+      {
+        id: "q5",
+        type: "multi",
+        skill: "x-anchor",
+        q: "An anchored dropdown is being clipped by a parent with `overflow: hidden`. Which responses are right?",
+        options: [
+          "Re-anchor with `.fixed` so the popover uses fixed positioning",
+          "Use `.no-style` and set `position: fixed` yourself from `$anchor.x` / `$anchor.y`",
+          "Add `.noflip` to the directive",
+          "Remove the parent's `overflow: hidden`"
+        ],
+        answers: [0, 1, 3],
+        why: "`.fixed` (or hand-written fixed positioning) escapes the clip; fixing the ancestor is the other honest answer.",
+        distractors: { 2: "`.noflip` only stops the automatic flip when there is no room \u2014 it does not escape clipping." }
+      },
+      {
+        id: "q6",
+        type: "short",
+        skill: "x-anchor",
+        q: "Which modifier tells `x-anchor` to leave styling entirely to you? Answer with the modifier only, including its dot.",
+        accept: [".no-style", "no-style"],
+        why: "`.no-style` \u2014 then `$anchor.x` and `$anchor.y` are yours to apply, and so is the `position` mode."
+      }
+    ]
   };
 
-  // src/content/15-stub.js
-  var stub_default3 = {
+  // src/content/15-transitions.js
+  var cl9 = chainLadder(triangle);
+  var ROWS3 = triangle.years.map((y, i) => ({ year: y, ibnr: Number(cl9.ibnr[i].toFixed(1)) })).filter((r) => r.ibnr > 0);
+  var TOTAL3 = Number(ROWS3.reduce((n, r) => n + r.ibnr, 0).toFixed(1));
+  var CSS2 = `<style>
+  .sl-enter  { transition: opacity 700ms ease, transform 700ms ease; }
+  .sl-enter-start { opacity: 0; transform: translateY(10px); }
+  .sl-enter-end   { opacity: 1; transform: none; }
+  .sl-leave  { transition: opacity 700ms ease; }
+  .sl-leave-start { opacity: 1; }
+  .sl-leave-end   { opacity: 0; }
+</style>`;
+  var transitions_default = {
     id: "m15",
     num: 15,
-    title: "Transitions",
-    blurb: "x-transition, collapse animations, reduced motion.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    title: "Transitions \u2014 motion with meaning",
+    blurb: "x-transition turns show/hide into a glide: helper modifiers for the common cases, classes for full control.",
+    goal: "Use transitions where they explain a change, and know exactly which class or style is applied when.",
+    intro: `\`x-transition\` works on the element that carries \`x-show\`; keep that in mind, because \`x-if\` **cannot** be transitioned at all.
+
+**The helper.** A bare \`x-transition\` fades *and* scales: 150ms entering, 75ms leaving. Modifiers refine it: \`.duration.500ms\` and \`.delay.250ms\` set the clock, \`.opacity\` keeps opacity only, \`.scale.90\` scales only (and with \`.origin.top\`, \`.origin.bottom.left\` and friends, picks the anchor point).
+
+**The classes.** When you want your own CSS to own the look, apply classes per phase:
+
+| directive | when the class is on |
+| --- | --- |
+| \`x-transition:enter\` | the whole entering phase |
+| \`x-transition:enter-start\` | before insertion, lifted one frame after |
+| \`x-transition:enter-end\` | from that frame until the transition ends |
+| \`x-transition:leave\` | the whole leaving phase |
+| \`x-transition:leave-start\` | the instant leaving begins, lifted one frame later |
+| \`x-transition:leave-end\` | from that frame until the element is removed/hidden |`,
+    skills: ["x-transition", ".duration", ".delay", ".opacity", ".scale", "x-transition:enter", "x-transition:leave", "x-show vs x-if"],
+    docRefs: [
+      { label: "x-transition", url: "https://alpinejs.dev/directives/transition" },
+      { label: "Web Animations API (MDN)", url: "https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API" }
+    ],
+    mastery: [
+      "Fade, scale and time an element with `x-transition` and its modifiers",
+      "Drive a transition from your own CSS with the six phase classes",
+      "Know the default timings (150ms in, 75ms out) and override them precisely",
+      "Know why `x-if` cannot be transitioned, and choose between `x-show` and `x-if` on purpose"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "The transition helper",
+        objective: "Time a transition with .duration, .delay, .opacity and .scale.",
+        brief: `A bare \`x-transition\` is a pleasant default: fade plus a small scale, 150ms in and 75ms out. Everything else is a modifier.
+
+\`\`.duration.600ms\`\` sets both directions; \`x-transition:enter.duration.600ms\` and \`x-transition:leave.duration.200ms\` set them apart. \`\`.delay.400ms\` waits before starting. \`\`.opacity\` drops the scale; \`\`.scale.90\` drops the fade and scales to 90%, with \`\`.origin.top\` (also \`bottom\`, \`left\`, \`right\`, and pairs like \`.origin.top.right\`) choosing the anchor.
+
+The element is still *in the layout* for the whole leaving phase \u2014 \`display\` only flips when the transition finishes. Your checks can see that window.`,
+        example: {
+          code: `<div x-show="open" x-transition.duration.500ms>fades and scales over half a second</div>
+<div x-show="open" x-transition.opacity.delay.200ms>fades only, after a 200ms pause</div>`,
+          note: "Two elements, one flag \u2014 different motion for different roles."
+        },
+        starter: `<div x-data="{ open: true }">
+  <button data-testid="toggle" @click="open = !open">show or hide the banner</button>
+  <div data-testid="banner" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR movement +12.4 % this quarter
+  </div>
+</div>`,
+        solution: `<div x-data="{ open: true, delayed: false }">
+  <div class="row">
+    <button data-testid="toggle" @click="open = !open">show or hide the banner</button>
+    <button data-testid="slow" @click="delayed = !delayed">toggle the delayed card</button>
+  </div>
+  <div data-testid="banner" x-show="open" x-transition.duration.600ms
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR movement +12.4 % this quarter
+  </div>
+  <div data-testid="fadeOnly" x-show="open" x-transition.opacity.duration.600ms
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    fades, never scales
+  </div>
+  <div data-testid="zoom" x-show="open" x-transition.scale.90.origin.top.duration.600ms
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    grows from its top edge
+  </div>
+  <div style="margin-top:8px">
+    <div data-testid="delayed" x-show="delayed" x-transition.delay.400ms.duration.400ms
+         style="border:1px solid #253253;border-radius:8px;padding:10px">appears after a pause</div>
+  </div>
+</div>`,
+        hints: [
+          "The bare helper is already a fade + scale; add `.duration.600ms` to slow it down.",
+          "`.opacity` and `.scale` are alternatives: each one *removes* the other effect.",
+          "For the delayed card, the pause comes from `.delay.400ms` and it needs its own flag \u2014 a second `x-data` keeps the starter simple."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: ".duration",
+            text: "The banner must use the helper with a 600ms duration; hiding it must leave it in the layout for a moment before it disappears, and showing it again must catch it mid-fade.",
+            checks: [
+              { kind: "code", pattern: "x-transition\\.duration\\.600ms" },
+              { kind: "shown", selector: '[data-testid="banner"]' },
+              { kind: "textHas", selector: '[data-testid="banner"]', value: "IBNR movement", do: [{ click: '[data-testid="toggle"]' }, { wait: 120 }] },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.05, hi: 0.99 },
+              { kind: "hidden", selector: '[data-testid="banner"]', do: [{ wait: 700 }] },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.02, hi: 0.97, do: [{ click: '[data-testid="toggle"]' }, { wait: 300 }] },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.99, hi: 1.01, do: [{ wait: 600 }] }
+            ]
+          },
+          {
+            id: "t2",
+            skill: ".scale",
+            text: "The `fadeOnly` card must never scale \u2014 even mid-transition its transform stays `none` \u2014 while `zoom` must scale to 90 % from its top edge.",
+            checks: [
+              { kind: "code", pattern: "x-transition\\.opacity\\.duration\\.600ms" },
+              { kind: "code", pattern: "x-transition\\.scale\\.90\\.origin\\.top\\.duration\\.600ms" },
+              { kind: "styleBetween", selector: '[data-testid="fadeOnly"]', prop: "opacity", lo: 0.02, hi: 0.97, do: [{ click: '[data-testid="toggle"]' }, { wait: 350 }] },
+              { kind: "styleMatch", selector: '[data-testid="fadeOnly"]', prop: "transform", pattern: "^(none|matrix\\(1, 0, 0, 1, 0, 0\\))$" },
+              { kind: "styleMatch", selector: '[data-testid="zoom"]', prop: "transform", pattern: "^matrix\\(0?\\.\\d+" },
+              { kind: "styleMatch", selector: '[data-testid="zoom"]', prop: "transform-origin", pattern: "^[\\d.]+px 0px" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: ".delay",
+            text: "The delayed card must wait 400ms and then take 400ms: right after its toggle it must still be fully transparent, and complete by 900ms.",
+            checks: [
+              { kind: "code", pattern: "x-transition\\.delay\\.400ms\\.duration\\.400ms" },
+              { kind: "styleBetween", selector: '[data-testid="delayed"]', prop: "opacity", lo: -0.01, hi: 0.2, do: [{ click: '[data-testid="slow"]' }, { wait: 150 }] },
+              { kind: "styleBetween", selector: '[data-testid="delayed"]', prop: "opacity", lo: 0.99, hi: 1.01, do: [{ wait: 800 }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "Class-based transitions",
+        objective: "Hand the motion to your own CSS with the six phase classes.",
+        brief: `Instead of the helper's inline animation, name classes for each phase and let CSS do the rest:
+
+\`\`\`html
+<div x-show="open"
+     x-transition:enter="sl-enter"
+     x-transition:enter-start="sl-enter-start"
+     x-transition:enter-end="sl-enter-end"
+     x-transition:leave="sl-leave"
+     x-transition:leave-start="sl-leave-start"
+     x-transition:leave-end="sl-leave-end">\u2026</div>
+\`\`\`
+
+The stylesheet in this cell provides those six classes, with a 700ms transition attached to \`sl-enter\` and \`sl-leave\`. Watch the order: \`*-start\` classes exist for exactly **one frame**, then the \`*-end\` class takes over until the transition finishes. That is why a *start* class is the "from" state and an *end* class is the "to" state.`,
+        example: {
+          code: `/* .box-enter { transition: opacity 500ms }  .box-enter-start { opacity: 0 }  .box-enter-end { opacity: 1 } */
+<div x-show="open" x-transition:enter="box-enter" x-transition:enter-start="box-enter-start" x-transition:enter-end="box-enter-end">\u2026</div>`,
+          note: "The helper is a shortcut; these six classes are the machinery underneath."
+        },
+        starter: CSS2 + `
+<div x-data="{ open: false }">
+  <button data-testid="toggle" @click="open = !open">show the valuation panel</button>
+  <div data-testid="panel" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    Valuation panel \u2014 basis 2015 VBT, rate 4.5 %
+  </div>
+</div>`,
+        solution: CSS2 + `
+<div x-data="{ open: false }">
+  <button data-testid="toggle" @click="open = !open">show the valuation panel</button>
+  <div data-testid="panel" x-show="open"
+       x-transition:enter="sl-enter" x-transition:enter-start="sl-enter-start" x-transition:enter-end="sl-enter-end"
+       x-transition:leave="sl-leave" x-transition:leave-start="sl-leave-start" x-transition:leave-end="sl-leave-end"
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    Valuation panel \u2014 basis 2015 VBT, rate 4.5 %
+  </div>
+</div>`,
+        hints: [
+          "Six directives, six class names \u2014 the names must match the stylesheet above.",
+          'The `-start` class is the "from" state and is removed one frame in; the `-end` class carries the "to" state.',
+          "Because `sl-enter` carries the CSS transition, Alpine can measure the 700ms duration and knows when to clean up."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-transition:enter",
+            text: "All six phase directives must be wired to the provided classes. When the panel enters, it must wear `sl-enter` and `sl-enter-end` \u2014 and no longer `sl-enter-start` \u2014 while its opacity is still climbing.",
+            checks: [
+              { kind: "code", pattern: 'x-transition:enter="sl-enter"' },
+              { kind: "code", pattern: 'x-transition:enter-start="sl-enter-start"' },
+              { kind: "code", pattern: 'x-transition:enter-end="sl-enter-end"' },
+              { kind: "code", pattern: 'x-transition:leave="sl-leave"' },
+              { kind: "code", pattern: 'x-transition:leave-start="sl-leave-start"' },
+              { kind: "code", pattern: 'x-transition:leave-end="sl-leave-end"' },
+              { kind: "klass", selector: '[data-testid="panel"]', value: "sl-enter", do: [{ click: '[data-testid="toggle"]' }, { wait: 80 }] },
+              { kind: "klass", selector: '[data-testid="panel"]', value: "sl-enter-end" },
+              { kind: "noKlass", selector: '[data-testid="panel"]', value: "sl-enter-start" },
+              { kind: "shown", selector: '[data-testid="panel"]', do: [{ wait: 700 }] },
+              { kind: "styleBetween", selector: '[data-testid="panel"]', prop: "opacity", lo: 0.02, hi: 0.97, do: [{ click: '[data-testid="toggle"]' }, { wait: 350 }] },
+              { kind: "klass", selector: '[data-testid="panel"]', value: "sl-leave" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-transition:enter",
+            text: "Once the enter finishes the classes must be cleaned up: no `sl-enter`, no `sl-enter-end`, no `sl-leave` \u2014 and the panel fully opaque.",
+            checks: [
+              { kind: "noKlass", selector: '[data-testid="panel"]', value: "sl-enter", do: [{ wait: 600 }, { click: '[data-testid="toggle"]' }, { wait: 800 }] },
+              { kind: "shown", selector: '[data-testid="panel"]' },
+              { kind: "noKlass", selector: '[data-testid="panel"]', value: "sl-enter-end" },
+              { kind: "noKlass", selector: '[data-testid="panel"]', value: "sl-leave" },
+              { kind: "styleBetween", selector: '[data-testid="panel"]', prop: "opacity", lo: 0.99, hi: 1.01 }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-transition:leave",
+            text: "Leaving must be staged too: 80ms in, the panel still wears `sl-leave` and `sl-leave-end` and is still in the layout; after the 700ms it is gone.",
+            checks: [
+              { kind: "klass", selector: '[data-testid="panel"]', value: "sl-leave", do: [{ click: '[data-testid="toggle"]' }, { wait: 80 }] },
+              { kind: "klass", selector: '[data-testid="panel"]', value: "sl-leave-end" },
+              { kind: "styleBetween", selector: '[data-testid="panel"]', prop: "opacity", lo: 0.05, hi: 0.99 },
+              { kind: "hidden", selector: '[data-testid="panel"]', do: [{ wait: 800 }] },
+              { kind: "noKlass", selector: '[data-testid="panel"]', value: "sl-leave" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "x-show keeps the node, x-if destroys it",
+        objective: "Pick the directive that matches the job \u2014 only one of them can transition.",
+        brief: `A leaving transition needs the element to still be in the document while it fades. \`x-show\` does exactly that: it flips \`display\` when the transition finishes. \`x-if\` does **not support transitions at all** \u2014 it clones the template in on truth and destroys the node on falsity, so there is nothing left to animate on the way out.
+
+That is the whole choice: \`x-show\` + \`x-transition\` when the element should animate, or when re-creating it is cheap; \`x-if\` when the subtree must genuinely not exist \u2014 a heavy chart, a block only some roles may see.`,
+        example: {
+          code: `<p x-show="notice" x-transition.duration.500ms>fades out, then display:none \u2014 the node stays</p>
+
+<template x-if="audit"><p>created and destroyed \u2014 no transition is possible</p></template>`,
+          note: "Both are conditional rendering; only one of the two can be animated."
+        },
+        starter: `<div x-data="{ notice: true, audit: false, rows: ${sq(ROWS3)}, openYear: null }">
+  <button data-testid="dismiss" @click="notice = false">dismiss the notice</button>
+  <p data-testid="notice">Late-reported claims are loading the tail.</p>
+  <button data-testid="audit" @click="audit = !audit">show the audit trail</button>
+  <template x-if="audit">
+    <p data-testid="auditBlock">41 manual overrides this quarter.</p>
+  </template>
+  <ul data-testid="list" style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.year">
+      <li :data-year="r.year">
+        <button data-testid="rowToggle" @click="openYear = openYear === r.year ? null : r.year">year <span x-text="r.year"></span></button>
+        <div data-testid="detail" x-show="openYear === r.year" style="margin-top:6px">IBNR <b x-text="r.ibnr.toFixed(1)"></b></div>
+      </li>
+    </template>
+  </ul>
+</div>`,
+        solution: `<div x-data="{ notice: true, audit: false, rows: ${sq(ROWS3)}, openYear: null }">
+  <button data-testid="dismiss" @click="notice = false">dismiss the notice</button>
+  <p data-testid="notice" x-show="notice" x-transition.duration.600ms style="color:#8fb3ff">
+    Late-reported claims are loading the tail \u2014
+    <span data-testid="noticeBody">${ROWS3[ROWS3.length - 1].year} carries ${(100 * ROWS3[ROWS3.length - 1].ibnr / TOTAL3).toFixed(0)} % of the total IBNR of ${TOTAL3}.</span>
+  </p>
+
+  <button data-testid="audit" @click="audit = !audit">show the audit trail</button>
+  <template x-if="audit">
+    <p data-testid="auditBlock">41 manual overrides this quarter \u2014 created and destroyed, so it cannot animate.</p>
+  </template>
+
+  <ul data-testid="list" style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.year">
+      <li :data-year="r.year" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
+        <button data-testid="rowToggle" @click="openYear = openYear === r.year ? null : r.year">year <span x-text="r.year"></span></button>
+        <div data-testid="detail" x-show="openYear === r.year" x-transition.duration.400ms style="margin-top:6px">
+          IBNR <b x-text="r.ibnr.toFixed(1)"></b>
+        </div>
+      </li>
+    </template>
+  </ul>
+</div>`,
+        hints: [
+          "The notice has to fade, so it needs `x-show` alongside `x-transition` \u2014 with `x-if` it would be deleted before anything could animate.",
+          "The audit block stays on `x-if` on purpose: a heavy or sensitive block should not sit in the DOM at all.",
+          "The row panels are `x-show` + `x-transition.duration.400ms`, so opening a row glides while the other rows keep their state."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-show",
+            text: "The notice must use `x-show` with a 600ms transition and never `x-if`; 300ms after dismissing it, it is still in the layout with its opacity on the way down.",
+            checks: [
+              { kind: "code", pattern: 'x-show="notice"' },
+              { kind: "code", pattern: "x-transition\\.duration\\.600ms" },
+              { kind: "noCode", pattern: 'x-if="notice"' },
+              { kind: "shown", selector: '[data-testid="notice"]', do: [{ click: '[data-testid="dismiss"]' }, { wait: 300 }] },
+              { kind: "styleBetween", selector: '[data-testid="notice"]', prop: "opacity", lo: 0.02, hi: 0.97 }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-show",
+            text: "Once the fade is done the notice is hidden but still in the document \u2014 the surviving inner span is the proof that `x-if` was not used.",
+            checks: [
+              { kind: "hidden", selector: '[data-testid="notice"]', do: [{ wait: 700 }] },
+              { kind: "count", selector: '[data-testid="noticeBody"]', value: 1 }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-if",
+            text: "The audit block is the opposite case: `x-if` must create it, and destroy it \u2014 present 400ms after showing, absent from the document one frame after hiding.",
+            checks: [
+              { kind: "code", pattern: 'x-if="audit"' },
+              { kind: "shown", selector: '[data-testid="auditBlock"]', do: [{ click: '[data-testid="audit"]' }, { wait: 400 }] },
+              { kind: "count", selector: '[data-testid="auditBlock"]', value: 0, do: [{ click: '[data-testid="audit"]' }, { wait: 150 }] }
+            ]
+          },
+          {
+            id: "t4",
+            skill: "x-for",
+            text: `Each year owns a detail panel; opening ${ROWS3[1].year} reveals only that panel and catches it mid-fade, while ${ROWS3[0].year} stays closed.`,
+            checks: [
+              { kind: "count", selector: '[data-testid="detail"]', value: ROWS3.length },
+              { kind: "hidden", selector: '[data-year="' + ROWS3[0].year + '"] [data-testid="detail"]' },
+              { kind: "shown", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="detail"]', do: [{ click: '[data-year="' + ROWS3[1].year + '"] [data-testid="rowToggle"]' }, { wait: 100 }] },
+              { kind: "styleBetween", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="detail"]', prop: "opacity", lo: 0.02, hi: 0.97 },
+              { kind: "hidden", selector: '[data-year="' + ROWS3[0].year + '"] [data-testid="detail"]' }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 a movement banner that arrives and leaves",
+        objective: "A full class-based cycle: six phases, correct staging, nothing left behind.",
+        scenario: `The quarter's reserve movement notice must slide up into place over 700ms when a reviewer reveals it, and slide away over the same 700ms when dismissed \u2014 and while it slides away it must still occupy its space, so the table below does not jump. Provided CSS: \`.mv-enter\`, \`.mv-enter-start\`, \`.mv-enter-end\`, \`.mv-leave\`, \`.mv-leave-start\`, \`.mv-leave-end\`, with the 700ms transitions already attached.`,
+        brief: `Elements: \`data-testid="reveal"\` shows the notice, \`data-testid="dismiss"\` takes it away, and \`data-testid="banner"\` carries the six phase directives with the \`mv-*\` classes. The banner starts hidden.`,
+        starter: `<div x-data="{ open: false }">
+  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
+  <button data-testid="dismiss" @click="open = false">dismiss</button>
+  <div data-testid="banner" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR up 12.4 % on 2025 frequency
+  </div>
+</div>`,
+        solution: `<style>
+  .mv-enter  { transition: opacity 700ms ease, transform 700ms ease; }
+  .mv-enter-start { opacity: 0; transform: translateY(12px); }
+  .mv-enter-end   { opacity: 1; transform: none; }
+  .mv-leave  { transition: opacity 700ms ease; }
+  .mv-leave-start { opacity: 1; }
+  .mv-leave-end   { opacity: 0; }
+</style>
+<div x-data="{ open: false }">
+  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
+  <button data-testid="dismiss" @click="open = false">dismiss</button>
+  <div data-testid="banner" x-show="open"
+       x-transition:enter="mv-enter" x-transition:enter-start="mv-enter-start" x-transition:enter-end="mv-enter-end"
+       x-transition:leave="mv-leave" x-transition:leave-start="mv-leave-start" x-transition:leave-end="mv-leave-end"
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR up 12.4 % on 2025 frequency
+  </div>
+</div>`,
+        hints: [
+          "Same six directives as the step; the class names here are `mv-*`, and the stylesheet is already given.",
+          `The banner must be \`hidden\` at 80ms into the leave but only \`display:none\` after the 700ms finishes.`,
+          "Dismissing then re-revealing must work repeatedly \u2014 Alpine cleans the classes up for you."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-transition:enter",
+            text: "The banner must start hidden, then enter over 700ms: 150ms in it is wearing `mv-enter` and `mv-enter-end`, has shed `mv-enter-start`, and its opacity is climbing.",
+            checks: [
+              { kind: "hidden", selector: '[data-testid="banner"]' },
+              { kind: "code", pattern: 'x-transition:enter-start="mv-enter-start"' },
+              { kind: "klass", selector: '[data-testid="banner"]', value: "mv-enter", do: [{ click: '[data-testid="reveal"]' }, { wait: 150 }] },
+              { kind: "klass", selector: '[data-testid="banner"]', value: "mv-enter-end" },
+              { kind: "noKlass", selector: '[data-testid="banner"]', value: "mv-enter-start" },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.02, hi: 0.95 }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "x-transition:enter",
+            text: "By the time it has arrived the phase classes are gone and it is fully opaque \u2014 the notice is not left mid-transition.",
+            checks: [
+              { kind: "noKlass", selector: '[data-testid="banner"]', value: "mv-enter", do: [{ wait: 700 }] },
+              { kind: "noKlass", selector: '[data-testid="banner"]', value: "mv-enter-end" },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.99, hi: 1.01 },
+              { kind: "shown", selector: '[data-testid="banner"]' }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-transition:leave",
+            text: "Dismissing must stage the leave: at 150ms the banner wears `mv-leave`, is still occupying space, and its opacity is between the ends; after 700ms it is hidden with no classes left.",
+            checks: [
+              { kind: "klass", selector: '[data-testid="banner"]', value: "mv-leave", do: [{ click: '[data-testid="dismiss"]' }, { wait: 150 }] },
+              { kind: "shown", selector: '[data-testid="banner"]' },
+              { kind: "styleBetween", selector: '[data-testid="banner"]', prop: "opacity", lo: 0.02, hi: 0.95 },
+              { kind: "hidden", selector: '[data-testid="banner"]', do: [{ wait: 700 }] },
+              { kind: "noKlass", selector: '[data-testid="banner"]', value: "mv-leave" },
+              { kind: "noKlass", selector: '[data-testid="banner"]', value: "mv-leave-end" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 a drawer with asymmetric timings",
+        objective: "Slow to open, quick to close, plus an x-if notice that fades in.",
+        scenario: `Accident-year drawers in the IBNR workbench open over 600ms, because opening is when the reviewer wants the movement to be legible. Closing happens when they have already read the drawer, so it takes 200ms. When every year has been cleared, the \`x-if\` notice "nothing outstanding" fades in over 300ms. Rows: ${ROWS3.map((r) => `${r.year} (${r.ibnr.toFixed(1)})`).join(" \xB7 ")}.`,
+        brief: `Elements: one \`data-testid="row"\` per year with \`data-year\`, a \`data-testid="drawer"\` inside each row (toggled by a \`data-testid="rowToggle"\` button, one open at a time), \`data-testid="clear"\` empties the list, and \`data-testid="nothing"\` hidden by \`x-show="rows.length === 0"\` with a 300ms transition (a leaving transition rules out \`x-if\`). The drawer must use \`x-transition:enter.duration.600ms\` and \`x-transition:leave.duration.200ms\`.`,
+        starter: `<div x-data="{ rows: ${sq(ROWS3)}, openYear: null }">
+  <button data-testid="clear" @click="rows = []">mark everything reviewed</button>
+</div>`,
+        solution: `<div x-data="{ rows: ${sq(ROWS3)}, openYear: null }">
+  <button data-testid="clear" @click="rows = []; openYear = null">mark everything reviewed</button>
+
+  <ul style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.year">
+      <li data-testid="row" :data-year="r.year" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
+        <button data-testid="rowToggle" @click="openYear = openYear === r.year ? null : r.year">
+          <span x-text="r.year"></span> \u2014 IBNR <span x-text="r.ibnr.toFixed(1)"></span>
+        </button>
+        <div data-testid="drawer" x-show="openYear === r.year"
+             x-transition:enter.duration.600ms x-transition:leave.duration.200ms
+             style="margin-top:6px">
+          development factor applied <span x-text="(r.ibnr / ${ROWS3[0].ibnr}).toFixed(2)"></span>\xD7 the 2022 base; review the tail before sign-off.
+        </div>
+      </li>
+    </template>
+  </ul>
+
+  <p data-testid="nothing" x-show="rows.length === 0" x-transition.duration.300ms>
+    Nothing outstanding \u2014 every accident year is reviewed.
+  </p>
+</div>`,
+        hints: [
+          "Opening slowly and closing quickly means two separate duration directives on the same element.",
+          'The "nothing outstanding" message lives inside `<template x-if>`; the transition goes on the `<p>`.',
+          "The 200ms leave still keeps the drawer in the layout for a moment \u2014 that gap is what makes the asymmetrical timings visible."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: ".duration",
+            text: `Opening ${ROWS3[1].year} must be slow: 300ms in, the drawer is visible with its opacity still climbing between the ends, and it reads complete by 900ms.`,
+            checks: [
+              { kind: "code", pattern: "x-transition:enter\\.duration\\.600ms" },
+              { kind: "shown", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS3[1].year + '"] [data-testid="rowToggle"]' }, { wait: 300 }] },
+              { kind: "styleBetween", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="drawer"]', prop: "opacity", lo: 0.02, hi: 0.97 },
+              { kind: "styleBetween", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="drawer"]', prop: "opacity", lo: 0.99, hi: 1.01, do: [{ wait: 600 }] }
+            ]
+          },
+          {
+            id: "t2",
+            skill: ".duration",
+            text: `Closing must be quick but not instant: 120ms after the toggle the drawer is still in the layout, and by 400ms it is gone. (A 600ms leave would still be on screen at 400ms.)`,
+            checks: [
+              { kind: "code", pattern: "x-transition:leave\\.duration\\.200ms" },
+              { kind: "shown", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS3[1].year + '"] [data-testid="rowToggle"]' }, { wait: 120 }] },
+              { kind: "hidden", selector: '[data-year="' + ROWS3[1].year + '"] [data-testid="drawer"]', do: [{ wait: 300 }] },
+              { kind: "shown", selector: '[data-year="' + ROWS3[0].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS3[0].year + '"] [data-testid="rowToggle"]' }, { wait: 700 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-if",
+            text: "Reviewing everything must empty the list and fade the notice in over 300ms \u2014 mid-flight its opacity sits between the ends, and it settles opaque without ever leaving the document.",
+            checks: [
+              { kind: "hidden", selector: '[data-testid="nothing"]' },
+              { kind: "shown", selector: '[data-testid="nothing"]', do: [{ click: '[data-testid="clear"]' }, { wait: 100 }] },
+              { kind: "styleBetween", selector: '[data-testid="nothing"]', prop: "opacity", lo: 0.02, hi: 0.97 },
+              { kind: "count", selector: '[data-testid="row"]', value: 0 },
+              { kind: "styleBetween", selector: '[data-testid="nothing"]', prop: "opacity", lo: 0.99, hi: 1.01, do: [{ wait: 500 }] },
+              { kind: "code", pattern: "x-transition\\.duration\\.300ms" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s4",
+        title: "x-collapse: animating height",
+        objective: "Expand and collapse content along its height, with a floor when you want a teaser.",
+        brief: `\`x-collapse\` must sit on an element that already carries \`x-show\`. Where \`x-transition\` fades and scales, \`x-collapse\` animates **height** \u2014 from 0 up to the element's natural height and back \u2014 which is the motion that suits accordions and inline detail panels, because everything below glides instead of jumping.
+
+\`.duration.1000ms\` sets the pace (the default is 250ms). \`.min.100px\` keeps a floor: the collapsed state becomes a 100px cut-off rather than \`height: 0\` plus \`display: none\` \u2014 that is how "show more" teasers are built.`,
+        example: {
+          code: `<div x-show="open" x-collapse>height: 0 \u2192 auto, animated</div>
+<div x-show="open" x-collapse.min.80px>never shrinks past 80px, and stays displayed</div>`,
+          note: "Unlike a transition, the element is measured: the plugin animates to its real height."
+        },
+        starter: `<div x-data="{ open: false, teaser: false }">
+  <button data-testid="toggle" @click="open = !open">show the reserve note</button>
+  <div data-testid="note" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    <p>Two late-reported claims moved the 2025 IBNR by 11.3 points.</p>
+    <p>The tail factor went from 1.04 to 1.07 on the strength of the last four diagonals.</p>
+  </div>
+  <button data-testid="teaserToggle" @click="teaser = !teaser">show more of the tail note</button>
+  <div data-testid="teaser" x-show="teaser" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    <p>Reported development now runs nine years past the accident year, against seven a decade ago.</p>
+    <p>Settlement speed improved, which argues for a shorter tail than the one loaded here.</p>
+    <p>Recommendation: hold the factor and revisit with the next diagonal.</p>
+  </div>
+</div>`,
+        solution: `<div x-data="{ open: false, teaser: false }">
+  <button data-testid="toggle" @click="open = !open">show the reserve note</button>
+  <div data-testid="note" x-show="open" x-collapse.duration.600ms
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    <p>Two late-reported claims moved the 2025 IBNR by 11.3 points.</p>
+    <p>The tail factor went from 1.04 to 1.07 on the strength of the last four diagonals.</p>
+  </div>
+
+  <button data-testid="teaserToggle" @click="teaser = !teaser">show more of the tail note</button>
+  <div data-testid="teaser" x-show="teaser" x-collapse.min.100px
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px;overflow:hidden">
+    <p>Reported development now runs nine years past the accident year, against seven a decade ago.</p>
+    <p>Settlement speed improved, which argues for a shorter tail than the one loaded here.</p>
+    <p>Recommendation: hold the factor and revisit with the next diagonal.</p>
+  </div>
+</div>`,
+        hints: [
+          "Both blocks keep `x-show`; `x-collapse` is added on the same element and takes over the motion.",
+          "The slow note uses `.duration.600ms` \u2014 you should be able to catch it at half height.",
+          "The teaser uses `.min.100px`, so even collapsed it stays 100px tall and visible instead of `display: none`."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "x-collapse",
+            text: "The note must use `x-collapse` with a 600ms duration: 200ms into the expansion its height is a real but partial number of pixels, and once it settles it holds its full height.",
+            checks: [
+              { kind: "code", pattern: "x-collapse.duration.600ms" },
+              { kind: "shown", selector: '[data-testid="note"]', do: [{ click: '[data-testid="toggle"]' }, { wait: 200 }] },
+              { kind: "styleBetween", selector: '[data-testid="note"]', prop: "height", lo: 0.5, hi: 4e3 },
+              { kind: "styleBetween", selector: '[data-testid="note"]', prop: "height", lo: 20, hi: 4e3, do: [{ wait: 600 }] }
+            ]
+          },
+          {
+            id: "t2",
+            skill: ".min",
+            text: "The teaser must never vanish: with `.min.100px` the collapsed state is 100px tall and still displayed \u2014 page scrolling and layout should not jump.",
+            checks: [
+              { kind: "code", pattern: "x-collapse.min.100px" },
+              { kind: "shown", selector: '[data-testid="teaser"]' },
+              { kind: "styleBetween", selector: '[data-testid="teaser"]', prop: "height", lo: 99, hi: 101 },
+              { kind: "styleBetween", selector: '[data-testid="teaser"]', prop: "height", lo: 101, hi: 4e3, do: [{ click: '[data-testid="teaserToggle"]' }, { wait: 500 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "x-collapse",
+            text: "Collapsing the note must animate too, then put it away: 150ms in it is still in the layout with a positive height, and after 800ms it is `display: none`.",
+            checks: [
+              { kind: "shown", selector: '[data-testid="note"]', do: [{ click: '[data-testid="toggle"]' }, { wait: 150 }] },
+              { kind: "styleBetween", selector: '[data-testid="note"]', prop: "height", lo: 0.5, hi: 4e3 },
+              { kind: "hidden", selector: '[data-testid="note"]', do: [{ wait: 700 }] }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "x-transition",
+        q: "What does a bare `x-transition` do, and how long does it take?",
+        options: [
+          "Opacity only, 300ms both ways",
+          "Opacity and scale, 150ms entering and 75ms leaving",
+          "Opacity and scale, 150ms both ways",
+          "It only adds a CSS class \u2014 the timing is up to you"
+        ],
+        answer: 1,
+        why: "The helper fades *and* scales, using 150ms to enter and a snappier 75ms to leave.",
+        distractors: { 2: "The leave is deliberately quicker than the enter." }
+      },
+      {
+        id: "q2",
+        type: "multi",
+        skill: ".scale",
+        q: "Which modifiers change the *character* of the helper (rather than its timing)?",
+        options: [".opacity", ".scale.90", ".origin.top", ".delay.200ms"],
+        answers: [0, 1, 2],
+        why: "`.opacity` keeps only the fade, `.scale.90` keeps only the scaling, `.origin.*` moves the scale anchor. `.delay.*` only shifts the clock.",
+        distractors: { 3: "A delay changes *when*, not *what*." }
+      },
+      {
+        id: "q3",
+        type: "mc",
+        skill: "x-transition:enter",
+        q: "In the enter phase, when is `x-transition:enter-start` on the element?",
+        options: [
+          "For the whole transition",
+          "Before insertion, then one frame after insertion it is swapped for the `-end` class",
+          "Only after the transition finishes",
+          "Never \u2014 the `-start` class is only used on leave"
+        ],
+        answer: 1,
+        why: 'The `-start` class supplies the "from" state; it is lifted one frame in and `-end` takes over as the target state.',
+        distractors: { 0: "That is what the plain `:enter` class is for." }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "x-if",
+        q: 'You put `x-transition.duration.500ms` on an element inside `<template x-if="...">`. When the condition goes false, the element vanishes instantly. Why?',
+        options: [
+          "The duration modifier was written in the wrong order",
+          "`x-if` does not support transitions \u2014 the node is destroyed, so there is nothing to animate out",
+          "Transitions need an `x-effect` alongside them",
+          "The element also needs a `tabindex`"
+        ],
+        answer: 1,
+        why: "`x-if` inserts and destroys nodes; Alpine does not run the transition machinery for it. Use `x-show` when the element must animate (and it will stay in the DOM).",
+        distractors: { 0: "Modifier order never matters in Alpine \u2014 it parses them all." }
+      },
+      {
+        id: "q5",
+        type: "mc",
+        skill: ".duration",
+        q: "You want a panel to take 600ms to appear but only 150ms to disappear. Which pair of directives is right?",
+        options: [
+          "`x-transition.duration.600ms`",
+          "`x-transition.duration.600ms` and `x-transition.duration.150ms`",
+          "`x-transition:enter.duration.600ms` and `x-transition:leave.duration.150ms`",
+          "`x-transition.delay.600ms` and `x-transition.duration.150ms`"
+        ],
+        answer: 2,
+        why: "Per-phase directives override the duration for that direction; a single `.duration` sets both.",
+        distractors: { 3: "`.delay` postpones the transition, it does not lengthen it." }
+      },
+      {
+        id: "q6",
+        type: "short",
+        skill: ".duration",
+        q: "Which modifier adds a pause before the transition begins? Answer with the modifier and a value, e.g. the form used in this module.",
+        accept: [".delay.400ms", "delay", ".delay", ".delay.200ms", ".delay.500ms"],
+        why: "`.delay.<value>` \u2014 for example `x-transition.delay.400ms.duration.400ms` waits 400ms and then animates for 400ms."
+      },
+      {
+        id: "q7",
+        type: "mc",
+        skill: "x-collapse",
+        q: "What does `x-collapse` animate that `x-transition` does not?",
+        options: [
+          "The element's height, from 0 to its natural height",
+          "The element's width",
+          "Nothing \u2014 they are the same plugin",
+          "The scroll position of the page"
+        ],
+        answer: 0,
+        why: "It measures the element and animates `height`, so surrounding content glides instead of jumping. `x-transition` works on opacity/transform.",
+        distractors: { 2: "Collapse is a separate plugin (`@alpinejs/collapse`) for exactly this reason." }
+      },
+      {
+        id: "q8",
+        type: "mc",
+        skill: ".min",
+        q: 'An element has `x-show="open"` and `x-collapse.min.120px`. What does the collapsed state look like?',
+        options: [
+          "The element is 120px tall and still displayed",
+          "The element is hidden with `display: none`",
+          "The element is 0px tall but still displayed",
+          "The plugin refuses the combination and throws"
+        ],
+        answer: 0,
+        why: '`.min` replaces the "0px + display: none" end state with a fixed floor, which is how teasers that reveal more work.',
+        distractors: {
+          1: "That is the plain collapsed state \u2014 `.min` exists precisely to keep the element on screen.",
+          3: "The combination is supported and documented."
+        }
+      }
+    ]
   };
 
-  // src/content/16-stub.js
-  var stub_default4 = {
+  // src/content/16-async-morph.js
+  var AGES4 = [45, 50, 55, 60];
+  var TABLE2 = AGES4.map((a) => ({ age: a, qx: Number(life.qx(a).toFixed(5)), p10: Number(life.p(a, 10).toFixed(4)) }));
+  var QX = Object.fromEntries(TABLE2.map((r) => [r.age, r.qx]));
+  var RATES5 = [0.03, 0.045, 0.055];
+  var SCENARIOS = [
+    RATES5.map((r) => Number(life.aDueTemp(45, 15, r).toFixed(4))),
+    [0.035, 0.05, 0.06].map((r) => Number(life.aDueTemp(45, 15, r).toFixed(4)))
+  ];
+  var BASES3 = [
+    { id: "vbt", label: "2015 VBT", factor: 1 },
+    { id: "unisex", label: "Unisex annuitant", factor: 1.14 }
+  ];
+  var rowsFor = (factor, scale) => TABLE2.map((r) => ({ age: r.age, qx: Number((r.qx * factor).toFixed(5)), lx: Math.round(r.p10 * scale) }));
+  var ROWS_A = rowsFor(BASES3[0].factor, 94e4);
+  var ROWS_B = rowsFor(BASES3[1].factor, 902e3);
+  var async_morph_default = {
     id: "m16",
     num: 16,
     title: "Async data and morphing",
-    blurb: "async expressions, fetch, Alpine.morph.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    blurb: "await inside expressions, loading and error states, and Alpine.morph for refreshing markup without losing it.",
+    goal: "Load data asynchronously without hand-rolled spinners, and update markup while the user is still typing in it.",
+    intro: `Alpine speaks \`await\`: expressions that return promises are awaited for you, so \`x-text="await label()"\` is legal \u2014 and an async function referenced without parentheses is detected and awaited too.
+
+**\`Alpine.morph(el, html)\`** takes existing markup plus new HTML and patches the difference *in place*: matching elements keep their DOM nodes, so an input keeps what the user typed, focus stays where it was, and Alpine state on a matched element is not thrown away. Options pair elements by a key attribute and let you observe the patch.
+
+Both come together when a component is worth extracting: \`Alpine.data\` + \`alpine:init\` + one async load, used twice with different arguments.`,
+    skills: ["async expressions", "await in x-text", "loading state", "error state", "Alpine.morph", "morph key", "Alpine.data extraction"],
+    docRefs: [
+      { label: "Async", url: "https://alpinejs.dev/advanced/async" },
+      { label: "Morph", url: "https://alpinejs.dev/plugins/morph" },
+      { label: "Alpine.data", url: "https://alpinejs.dev/globals/alpine-data" }
+    ],
+    mastery: [
+      "Await promises directly in Alpine expressions, with and without parentheses",
+      "Model loading, ready and failed states instead of hoping",
+      "Patch markup with `Alpine.morph` while keeping node identity, input values and focus",
+      "Extract an async component with `Alpine.data` and reuse it with different arguments"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "Async expressions",
+        objective: "Await a promise in the markup and show a real loading state.",
+        brief: `Alpine awaits promises for you. Two forms are supported:
+
+\`\`\`html
+<span x-text="await rowLabel(50)"></span>   <!-- explicit await -->
+<span x-text="rowLabel"></span>            <!-- async function, no parentheses -->
+\`\`\`
+
+When the promise is pending the directive renders nothing new \u2014 so the *interesting* pattern is to keep a \`state\` flag beside the request and let \`x-init="await load()"\` drive it: \`idle \u2192 loading \u2192 ready\`, with \`failed\` and an error message when the promise rejects. Every async action should be able to end in a failure the user can see and retry.`,
+        example: {
+          code: `<div x-data="{ rows: [], state: 'loading', async load() { this.state = 'loading'; try { this.rows = await api(); this.state = 'ready' } catch (e) { this.state = 'failed' } } }" x-init="await load()">`,
+          note: "The state machine is the feature; the await is just syntax."
+        },
+        starter: `<div x-data="{
+  state: 'idle', qx: null, error: '', bomb: false,
+  sleep(ms) { return new Promise(res => setTimeout(res, ms)) },
+  async fetchAge(age) {
+    await this.sleep(250)
+    if (this.bomb) throw new Error('the mortality service is unavailable')
+    return { age: age, qx: ${QX[50]} }
+  }
+}">
+  <p>state <b data-testid="state" x-text="state"></b> \xB7 fetched q\u2093 <b data-testid="qx" x-text="qx === null ? '-' : qx"></b></p>
+</div>`,
+        solution: `<div x-data="{
+  state: 'idle', qx: null, error: '', bomb: false,
+  sleep(ms) { return new Promise(res => setTimeout(res, ms)) },
+  async fetchAge(age) {
+    await this.sleep(250)
+    if (this.bomb) throw new Error('the mortality service is unavailable')
+    return { age: age, qx: Number(( ${QX[50]} * (1 + (age - 50) / 400) ).toFixed(5)) }
+  },
+  async rowLabel(age) { const r = await this.fetchAge(age); return 'q' + r.age + ' = ' + r.qx },
+  async label50() { return await this.rowLabel(50) },
+  async load() {
+    this.state = 'loading'; this.error = ''
+    try { const r = await this.fetchAge(50); this.qx = r.qx; this.state = 'ready' }
+    catch (e) { this.error = e.message; this.state = 'failed' }
+  }
+}" x-init="await load()">
+  <p>
+    state <b data-testid="state" x-text="state"></b> \xB7
+    fetched q\u2093 <b data-testid="qx" x-text="qx === null ? '-' : qx"></b> \xB7
+    awaited <b data-testid="labelAwait" x-text="await rowLabel(50)"></b> \xB7
+    bare <b data-testid="labelBare" x-text="label50"></b>
+  </p>
+  <p data-testid="error" style="color:#ff9a9a" x-text="error"></p>
+  <div class="row">
+    <button data-testid="reload" @click="load()">reload from the service</button>
+    <button data-testid="bomb" @click="bomb = !bomb">simulate an outage</button>
+  </div>
+</div>`,
+        hints: [
+          '`x-init="await load()"` is the whole initial-loading pattern: the flag flips to loading, the promise runs, the flag settles.',
+          '`x-text="await rowLabel(50)"` is the explicit form; `x-text="label50"` is the paren-less form \u2014 Alpine notices the function is async and awaits it.',
+          "Wrap the fetch in try/catch, keep the message in `error`, and let the user retry."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "await in x-text",
+            text: `The awaited label must resolve to \`q50 = ${QX[50]}\` and the fetched q\u2093 must be on screen once the initial load settles.`,
+            checks: [
+              { kind: "text", selector: '[data-testid="labelAwait"]', value: "q50 = " + QX[50], do: [{ wait: 500 }] },
+              { kind: "text", selector: '[data-testid="qx"]', value: String(QX[50]) },
+              { kind: "text", selector: '[data-testid="state"]', value: "ready" },
+              { kind: "code", pattern: "await rowLabel\\(" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "async expressions",
+            text: "The paren-less method must resolve the same way \u2014 Alpine detects the async function and waits for it.",
+            checks: [
+              { kind: "text", selector: '[data-testid="labelBare"]', value: "q50 = " + QX[50], do: [{ wait: 400 }] },
+              { kind: "code", pattern: 'x-text="label50"' }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "loading state",
+            text: "A reload must pass through a visible `loading` state and land back on `ready`; an outage must land on `failed` with the message shown \u2014 never a silent blank.",
+            checks: [
+              { kind: "text", selector: '[data-testid="state"]', value: "loading", do: [{ click: '[data-testid="reload"]' }, { wait: 80 }] },
+              { kind: "text", selector: '[data-testid="state"]', value: "ready", do: [{ wait: 400 }] },
+              { kind: "text", selector: '[data-testid="state"]', value: "failed", do: [{ click: '[data-testid="bomb"]' }, { click: '[data-testid="reload"]' }, { wait: 450 }] },
+              { kind: "textHas", selector: '[data-testid="error"]', value: "unavailable" },
+              { kind: "text", selector: '[data-testid="state"]', value: "ready", do: [{ click: '[data-testid="bomb"]' }, { click: '[data-testid="reload"]' }, { wait: 450 }] }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "Alpine.morph: new markup, same state",
+        objective: "Patch a region with new HTML and keep the nodes the user is using.",
+        brief: `\`Alpine.morph(element, newHtml, options)\` walks the new HTML against the existing children and **patches** it: matching elements are updated in place rather than replaced. That is what makes it different from \`x-html\`, which throws the subtree away \u2014 and with it the text someone was typing, the focus, and any component state living inside.
+
+Options: \`key\` (how to pair elements, defaulting to their \`key\` attribute), \`lookahead\`, and lifecycle hooks \`updating\`, \`updated\`, \`removing\`, \`removed\`, \`adding\`, \`added\`. The \`key\` attribute is the important one in practice: it tells the morph "these two are the same element" even when their position moved.`,
+        example: {
+          code: `Alpine.morph(this.$refs.panel, '<p>server said something new</p>', {
+  updating(el, toEl) { /* called for every element being patched */ }
+})`,
+          note: "A typed value survives only when the new markup does not set one \u2014 that is the deal morph makes."
+        },
+        starter: `<div x-data="{ scenario: 0, morphs: 0, fixes: 0, refresh() {} }">
+  <button data-testid="refresh" @click="refresh()">refresh from the server</button>
+</div>`,
+        solution: `<div x-data="{
+  scenario: 0, morphs: 0, fixes: 0,
+  scenarios: ${sq(SCENARIOS)},
+  stamp() { return this.scenario > 0 ? 'Unisex annuitant, 5.0 %' : '2015 VBT, 4.5 %' },
+  values() { return this.scenarios[Math.min(this.scenario, this.scenarios.length - 1)] },
+  serverMarkup() {
+    const vals = this.values()
+    return '<div data-testid=quoteBody><div class=grid>'
+      + vals.map((v, i) => '<span class=cell data-testid=cell key=r' + i + '>a-due ' + i + ': ' + v.toFixed(4) + '</span>').join('')
+      + '</div><p data-testid=stamp>quoted on the ' + this.stamp() + ' basis</p>'
+      + '<input data-testid=note class=inp placeholder=\\'reviewer note\\'>'
+      + '<div data-testid=draft>draft note - left alone by the morph</div></div>'
+  },
+  refresh(root) {
+    this.scenario++
+    this.morphs++
+    Alpine.morph(root.querySelector('[data-testid=quoteBody]'), this.serverMarkup(), {
+      updating: (el, toEl) => { this.fixes++ }
+    })
+  }
+}">
+  <div class="row">
+    <button data-testid="refresh" @click="refresh($root)">refresh from the server</button>
+    <span class="muted">morphs <b data-testid="morphs" x-text="morphs"></b> \xB7 patched elements <b data-testid="fixes" x-text="fixes"></b></span>
+  </div>
+
+  <div data-testid="panel" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px"><div data-testid="quoteBody"><div class="grid"><span class="cell" data-testid="cell" key="r0">a-due 0: ${SCENARIOS[0][0].toFixed(4)}</span><span class="cell" data-testid="cell" key="r1">a-due 1: ${SCENARIOS[0][1].toFixed(4)}</span><span class="cell" data-testid="cell" key="r2">a-due 2: ${SCENARIOS[0][2].toFixed(4)}</span></div><p data-testid="stamp">quoted on the 2015 VBT, 4.5 % basis</p><input data-testid="note" class="inp" placeholder="reviewer note"><div data-testid="draft">draft note - left alone by the morph</div></div></div>
+</div>`,
+        hints: [
+          "Morph pairs children *positionally*: the new markup must repeat the same wrapper and the same child sequence, whitespace included. Keep the generated HTML compact and the `quoteBody` block on one line so no stray text nodes break the alignment.",
+          "Give every patched region a `key` attribute: it is how morph pairs elements between the old and new markup.",
+          "Never write a `value` attribute into the new HTML for an input the user is typing in \u2014 a typed value cannot be merged.",
+          "The `updating` hook fires per element the morph patches \u2014 a cheap way to see that it really ran. Look the region up with `$root.querySelector(...)`: morph patches attributes, so a `$refs` handle on a morphed element is not to be trusted."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.morph",
+            text: `Refreshing must patch in place: the three cells keep their identity (not rebuilt) and show the new scenario values ${SCENARIOS[1].map((v) => v.toFixed(4)).join(", ")}.`,
+            checks: [
+              { kind: "code", pattern: "Alpine\\.morph\\(" },
+              { kind: "code", pattern: 'key="r0"' },
+              { kind: "list", selector: '[data-testid="cell"]', values: SCENARIOS[0].map((v, i) => "a-due " + i + ": " + v.toFixed(4)) },
+              { kind: "textHas", selector: '[data-testid="stamp"]', value: "Unisex", do: [{ mark: '[data-testid="cell"]' }, { click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "list", selector: '[data-testid="cell"]', values: SCENARIOS[1].map((v, i) => "a-due " + i + ": " + v.toFixed(4)) },
+              { kind: "custom", name: "marked", selector: '[data-testid="cell"]' }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.morph",
+            text: "A note typed into the panel must survive the refresh, because morph keeps the input node instead of rebuilding it \u2014 and the untouched block must still be there.",
+            checks: [
+              { kind: "text", selector: '[data-testid="note"]', value: "", do: [{ click: '[data-testid="refresh"]' }, { wait: 200 }] },
+              { kind: "prop", selector: '[data-testid="note"]', prop: "value", value: "tail factor looks low to me", do: [{ type: '[data-testid="note"]', value: "tail factor looks low to me" }, { wait: 80 }, { click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "textHas", selector: '[data-testid="draft"]', value: "left alone" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.morph",
+            text: "The work must be observable: the morph counter and the `updating` hook both move when a refresh really patches, and the panel still shows the refreshed basis afterwards.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="morphs"]', pattern: "^[1-9]\\d*$", do: [{ click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "textMatch", selector: '[data-testid="fixes"]', pattern: "^[1-9]\\d*$" },
+              { kind: "textMatch", selector: '[data-testid="stamp"]', pattern: "Unisex" },
+              { kind: "list", selector: '[data-testid="cell"]', values: SCENARIOS[1].map((v, i) => "a-due " + i + ": " + v.toFixed(4)) }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "Extract it into a component",
+        objective: "Register an async component once and use it twice with different arguments.",
+        brief: `The extraction recipe has three parts: register inside \`alpine:init\` (or before \`Alpine.start()\` in a bundle), return a **factory** so each instance gets its own state, and accept arguments:
+
+\`\`\`html
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('basisTable', (age, factor) => ({ age, factor, rows: [], async init() { \u2026 } }))
+  })
+<\/script>
+
+<div x-data="basisTable(45, 1)"></div>
+<div x-data="basisTable(60, 1.14)"></div>
+\`\`\`
+
+A method called \`init()\` runs automatically when the component is created, which is where the async load belongs. Two instances then behave independently: their state, their requests and their numbers never touch.`,
+        example: {
+          code: `Alpine.data('basisTable', (age) => ({ age, rows: [], state: 'loading', async init() { this.rows = await load(age); this.state = 'ready' } }))`,
+          note: "Data, behaviour and the initial fetch live together \u2014 the markup only chooses the arguments."
+        },
+        starter: `<script>
+  document.addEventListener('alpine:init', () => {
+    // register the component here
+  })
+<\/script>
+
+<div x-data="{}">
+  <p>two independently loading cards will go here</p>
+</div>`,
+        solution: `<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('basisTable', (age, factor) => ({
+      age: age,
+      factor: factor,
+      state: 'loading',
+      rows: [],
+      sleep(ms) { return new Promise(res => setTimeout(res, ms)) },
+      async fetchRows() {
+        await this.sleep(200)
+        if (this.failNext) throw new Error('service unavailable')
+        return ${sq(TABLE2)}.map(r => ({ age: r.age, qx: Number((r.qx * this.factor).toFixed(5)) }))
+      },
+      async init() {
+        this.state = 'loading'
+        try { this.rows = await this.fetchRows(); this.state = 'ready' }
+        catch (e) { this.state = 'failed' }
+      }
+    }))
+  })
+<\/script>
+
+<div data-testid="card" data-instance="a" x-data="basisTable(45, 1)" style="border:1px solid #253253;border-radius:8px;padding:8px;margin-bottom:8px">
+  <b>age 45 \xB7 standard</b> \u2014 <span data-testid="state" x-text="state"></span>
+  <ul style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.age">
+      <li>age <span x-text="r.age"></span>: q\u2093 <b data-testid="qx" x-text="r.qx"></b></li>
+    </template>
+  </ul>
+</div>
+
+<div data-testid="card" data-instance="b" x-data="basisTable(60, 1.14)" style="border:1px solid #253253;border-radius:8px;padding:8px">
+  <b>age 60 \xB7 114 % of standard</b> \u2014 <span data-testid="state" x-text="state"></span>
+  <ul style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.age">
+      <li>age <span x-text="r.age"></span>: q\u2093 <b data-testid="qx" x-text="r.qx"></b></li>
+    </template>
+  </ul>
+</div>`,
+        hints: [
+          "Register inside the `alpine:init` listener, and return an object from a factory function \u2014 not a shared object literal.",
+          "`init()` is called automatically on creation: start the request there and set `state`.",
+          'Pass the arguments through `x-data="basisTable(45, 1)"`; each instance must use its own `age` and `factor`.'
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.data extraction",
+            text: "The component must be registered as `basisTable` and used twice with different arguments, both reaching `ready`.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.data\\('basisTable'" },
+              { kind: "code", pattern: 'x-data="basisTable\\(45, 1\\)"' },
+              { kind: "code", pattern: 'x-data="basisTable\\(60, 1\\.14\\)"' },
+              { kind: "count", selector: '[data-testid="card"]', value: 2 },
+              { kind: "list", selector: '[data-testid="state"]', values: ["ready", "ready"], do: [{ wait: 600 }] }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.data extraction",
+            text: "The instances must not share state: the first card loads the standard table and the second one is scaled by 114 % \u2014 the numbers differ accordingly.",
+            checks: [
+              { kind: "list", selector: '[data-instance="a"] [data-testid="qx"]', values: TABLE2.map((r) => String(Number((r.qx * 1).toFixed(5)))) },
+              { kind: "list", selector: '[data-instance="b"] [data-testid="qx"]', values: TABLE2.map((r) => String(Number((r.qx * 1.14).toFixed(5)))) }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "loading state",
+            text: "`init()` must own the async load, so the state machine is part of the component rather than the markup.",
+            checks: [
+              { kind: "code", pattern: "async init\\(" },
+              { kind: "textMatch", selector: '[data-instance="a"] [data-testid="state"]', pattern: "^(loading|ready)$" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 an async basis loader with retry",
+        objective: "Two bases, honest loading and failure states, and rows that only appear when the data is really there.",
+        scenario: `Valuation needs to pull two tables \u2014 ${BASES3.map((b) => `${b.label} (${(b.factor * 100).toFixed(0)} % of standard)`).join(" and ")} \u2014 from a service that takes about 250ms and sometimes fails. Reviewers must always know which table is on screen, whether a request is in flight, and why nothing arrived when it did not.`,
+        brief: `Elements: \`data-testid="basis"\` (a button per basis), \`data-testid="state"\` (\`loading\` / \`ready\` / \`failed\`), \`data-testid="label"\` naming the loaded basis, \`data-testid="table"\` with one \`data-testid="row"\` per age when ready, \`data-testid="error"\` carrying the failure message, and \`data-testid="retry"\` which repeats the last request. Bases: ${BASES3.map((b) => `${b.id}: ${b.label}`).join(", ")}.`,
+        starter: `<div x-data="{ state: 'loading', basis: null, error: '' }">
+  <p>nothing loaded yet</p>
+</div>`,
+        solution: `<div x-data="{
+  state: 'loading', basis: null, error: '', bomb: false,
+  bases: ${sq(BASES3.map((b) => ({ id: b.id, label: b.label })))},
+  rows: ${sq(ROWS_A)},
+  loaded: ${sq(ROWS_A)},
+  sleep(ms) { return new Promise(res => setTimeout(res, ms)) },
+  async load(id) {
+    this.state = 'loading'; this.error = ''
+    await this.sleep(250)
+    try {
+      if (this.bomb) throw new Error('the valuation service did not answer')
+      this.rows = id === 'unisex' ? ${sq(ROWS_B)} : ${sq(ROWS_A)}
+      this.basis = id
+      this.state = 'ready'
+    } catch (e) { this.error = e.message; this.state = 'failed' }
+  },
+  retry() { this.load(this.basis || 'vbt') }
+}" x-init="await load('vbt')">
+  <div class="row">
+    <template x-for="b in bases" :key="b.id">
+      <button data-testid="basis" @click="load(b.id)" x-text="b.label"></button>
+    </template>
+    <button data-testid="retry" @click="retry()">retry</button>
+    <button data-testid="outage" @click="bomb = !bomb">simulate an outage</button>
+  </div>
+  <p>
+    state <b data-testid="state" x-text="state"></b> \xB7
+    basis <b data-testid="label" x-text="basis === null ? '-' : (bases.find(b => b.id === basis) || {}).label"></b>
+  </p>
+  <p data-testid="error" style="color:#ff9a9a" x-text="error"></p>
+  <table data-testid="table" x-show="state === 'ready'">
+    <thead><tr><th>age</th><th>q\u2093</th><th>l\u2093</th></tr></thead>
+    <tbody>
+      <template x-for="r in rows" :key="r.age">
+        <tr data-testid="row"><td x-text="r.age"></td><td data-testid="qx" x-text="r.qx"></td><td x-text="r.lx"></td></tr>
+      </template>
+    </tbody>
+  </table>
+</div>`,
+        hints: [
+          "One method (`load`) owns the whole request: set loading, await, then commit rows and basis together \u2014 never half of them.",
+          "The initial load belongs in `x-init=\"await load('vbt')\"`; the buttons just call the same method with another id.",
+          "Retry needs to remember which basis was being fetched, so keep the selection in state (`basis`) and default it to vbt."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "loading state",
+            text: `The initial load must settle on the 2015 VBT table: \`ready\`, the basis named, and ${ROWS_A.length} rows with their q\u2093 values (${ROWS_A.map((r) => r.qx).join(", ")}).`,
+            checks: [
+              { kind: "text", selector: '[data-testid="state"]', value: "ready", do: [{ wait: 600 }] },
+              { kind: "textHas", selector: '[data-testid="label"]', value: "2015 VBT" },
+              { kind: "count", selector: '[data-testid="row"]', value: ROWS_A.length },
+              { kind: "list", selector: '[data-testid="qx"]', values: ROWS_A.map((r) => String(r.qx)) }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "async expressions",
+            text: `Switching basis must show the loading state while the request is in flight and then swap in the other table (${ROWS_B.map((r) => r.qx).join(", ")}).`,
+            checks: [
+              { kind: "text", selector: '[data-testid="state"]', value: "loading", do: [{ click: '[data-testid="basis"]:nth-of-type(2)' }, { wait: 80 }] },
+              { kind: "text", selector: '[data-testid="state"]', value: "ready", do: [{ wait: 500 }] },
+              { kind: "textHas", selector: '[data-testid="label"]', value: "Unisex" },
+              { kind: "list", selector: '[data-testid="qx"]', values: ROWS_B.map((r) => String(r.qx)) }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "error state",
+            text: "A failed request must say so and be retryable: `failed` with the message, then `ready` again once the service behaves.",
+            checks: [
+              { kind: "text", selector: '[data-testid="state"]', value: "failed", do: [{ click: '[data-testid="outage"]' }, { click: '[data-testid="retry"]' }, { wait: 450 }] },
+              { kind: "textHas", selector: '[data-testid="error"]', value: "did not answer" },
+              { kind: "text", selector: '[data-testid="state"]', value: "ready", do: [{ click: '[data-testid="outage"]' }, { click: '[data-testid="retry"]' }, { wait: 500 }] },
+              { kind: "count", selector: '[data-testid="row"]', value: ROWS_B.length }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 refresh the quote without losing the notes",
+        objective: "Morph server markup into a live panel and keep everything the reviewer touched.",
+        scenario: `The annuity quote recalculation arrives as fresh markup. The reviewer has already typed a note and a compliance flag is parked in the panel, and both must survive the refresh untouched \u2014 while the three annuity values and the basis stamp do change. Number-of-patches must be visible, so a refresh that quietly did nothing cannot pass review.`,
+        brief: `Elements: \`data-testid="refresh"\` (morph in the new markup), \`data-testid="panel"\` (the morphed region), three \`data-testid="value"\` cells each with a \`key\` attribute, \`data-testid="stamp"\`, the note input \`data-testid="note"\`, the untouched block \`data-testid="compliance"\`, and the readouts \`data-testid="patches"\` and \`data-testid="gen"\`. Scenario 0 rates ${RATES5.map((r) => (r * 100).toFixed(1) + " %").join(" / ")} \u2192 ${SCENARIOS[0].map((v) => v.toFixed(4)).join(", ")}; scenario 1 \u2192 ${SCENARIOS[1].map((v) => v.toFixed(4)).join(", ")}.`,
+        starter: `<div x-data="{ gen: 0, patches: 0 }">
+  <button data-testid="refresh" @click="gen++">refresh the quote</button>
+  <div data-testid="panel">quote panel</div>
+</div>`,
+        solution: `<div x-data="{
+  gen: 0, patches: 0,
+  scenarios: ${sq(SCENARIOS)},
+  values() { return this.scenarios[Math.min(this.gen, this.scenarios.length - 1)] },
+  serverMarkup() {
+    const vals = this.values()
+    return '<div data-testid=quoteBody><div class=grid>'
+      + vals.map((v, i) => '<span class=cell data-testid=value key=v' + i + '>' + v.toFixed(4) + '</span>').join('')
+      + '</div><p data-testid=stamp>recalculated on the ' + (this.gen > 0 ? '5.0 %' : '4.5 %') + ' basis</p>'
+      + '<input data-testid=note class=inp placeholder=\\'reviewer note\\'>'
+      + '<div data-testid=compliance>compliance flag: tail factor under review</div></div>'
+  },
+  refresh(root) {
+    this.gen++
+    Alpine.morph(root.querySelector('[data-testid=quoteBody]'), this.serverMarkup(), {
+      updating: () => { this.patches++ }
+    })
+  }
+}">
+  <div class="row">
+    <button data-testid="refresh" @click="refresh($root)">refresh the quote</button>
+    <span class="muted">generation <b data-testid="gen" x-text="gen"></b> \xB7 patched elements <b data-testid="patches" x-text="patches"></b></span>
+  </div>
+
+  <div data-testid="panel" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px"><div data-testid="quoteBody"><div class="grid"><span class="cell" data-testid="value" key="v0">${SCENARIOS[0][0].toFixed(4)}</span><span class="cell" data-testid="value" key="v1">${SCENARIOS[0][1].toFixed(4)}</span><span class="cell" data-testid="value" key="v2">${SCENARIOS[0][2].toFixed(4)}</span></div><p data-testid="stamp">recalculated on the 4.5 % basis</p><input data-testid="note" class="inp" placeholder="reviewer note"><div data-testid="compliance">compliance flag: tail factor under review</div></div></div>
+</div>`,
+        hints: [
+          "Build the new HTML the way the server would: the same `quoteBody` wrapper and the same child sequence with new numbers, and never a `value` attribute on the note input. Morph the region you look up with `$root.querySelector(...)`.",
+          "Each cell needs a `key` so the morph can pair it with the cell it already has.",
+          "Count the `updating` hook calls into `patches`; that counter is the proof the patch really happened."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.morph",
+            text: `One refresh must move the panel to scenario 1 (${SCENARIOS[1].map((v) => v.toFixed(4)).join(", ")}) while keeping the three cell nodes \u2014 not rebuilding them \u2014 and updating the stamp.`,
+            checks: [
+              { kind: "code", pattern: "Alpine\\.morph\\(" },
+              { kind: "code", pattern: 'key="v0"' },
+              { kind: "list", selector: '[data-testid="value"]', values: SCENARIOS[0].map((v) => v.toFixed(4)) },
+              { kind: "textHas", selector: '[data-testid="stamp"]', value: "5.0", do: [{ mark: '[data-testid="value"]' }, { click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "list", selector: '[data-testid="value"]', values: SCENARIOS[1].map((v) => v.toFixed(4)) },
+              { kind: "custom", name: "marked", selector: '[data-testid="value"]' }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "morph key",
+            text: "The typed note and the compliance flag must be exactly as the reviewer left them after the refresh.",
+            checks: [
+              { kind: "prop", selector: '[data-testid="note"]', prop: "value", value: "tail factor under review by actuarial", do: [{ type: '[data-testid="note"]', value: "tail factor under review by actuarial" }, { click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "textHas", selector: '[data-testid="compliance"]', value: "tail factor under review" },
+              { kind: "textMatch", selector: '[data-testid="stamp"]', pattern: "on the (4\\.5|5\\.0) % basis" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.morph",
+            text: "Refreshing must be observable: a generation counter and a patch count that both move, with the recalculated values on screen.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="gen"]', pattern: "^[1-9]\\d*$", do: [{ click: '[data-testid="refresh"]' }, { wait: 250 }] },
+              { kind: "textMatch", selector: '[data-testid="patches"]', pattern: "^[1-9]\\d*$" },
+              { kind: "list", selector: '[data-testid="value"]', values: SCENARIOS[1].map((v) => v.toFixed(4)) },
+              { kind: "textHas", selector: '[data-testid="stamp"]', value: "5.0" }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "await in x-text",
+        q: "Which expression is legal in Alpine?",
+        options: [
+          '<span x-text="await getLabel()"></span>',
+          '<span x-text="getLabel().then(...)"></span>',
+          '<span x-text="Promise.resolve(getLabel())"></span>',
+          "None \u2014 await needs x-init"
+        ],
+        answer: 0,
+        why: 'Alpine awaits promises in expressions, and it also detects an async function passed without parentheses (`x-text="getLabel"`).',
+        distractors: { 1: "Statements do not work in Alpine expressions \u2014 only expressions do." }
+      },
+      {
+        id: "q2",
+        type: "multi",
+        skill: "loading state",
+        q: "What should a request-driven component keep, so the interface never lies?",
+        options: [
+          "A state flag (`loading` / `ready` / `failed`)",
+          "The error message, so the failure can be shown and retried",
+          "A timeout that forces the data to appear anyway",
+          "The last good data, so a failed refresh does not blank the screen"
+        ],
+        answers: [0, 1, 3],
+        why: "State, message and retained data: that is the difference between a spinner and an interface someone can trust.",
+        distractors: { 2: "Pretending a request succeeded is how wrong numbers reach a valuation report." }
+      },
+      {
+        id: "q3",
+        type: "mc",
+        skill: "Alpine.morph",
+        q: "What does `Alpine.morph(el, newHtml)` do that `x-html` does not?",
+        options: [
+          "It parses HTML faster",
+          "It patches the existing children instead of replacing the subtree, so matching nodes keep their identity and state",
+          "It sanitises the HTML",
+          "It only works inside x-data"
+        ],
+        answer: 1,
+        why: "Morph pairs the old and new trees and updates in place \u2014 that is why a typed input value and Alpine state inside the region survive.",
+        distractors: {
+          0: "Speed is not the point: identity and state are.",
+          2: "Neither directive sanitises anything \u2014 run untrusted HTML through your own sanitiser first."
+        }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "morph key",
+        q: 'How does morph decide that a `<span>` in the new markup is "the same element" as one already in the DOM?',
+        options: [
+          "By position in the tree only",
+          "By the `key` attribute (or whatever `key:` option you pass)",
+          "By the element id",
+          "By comparing text content"
+        ],
+        answer: 1,
+        why: "The default key getter reads the `key` attribute, and passing your own `key` option lets you use ids or data attributes instead.",
+        distractors: {
+          0: "Position decides where an unmatched node goes next \u2014 the key decides which node it *is*.",
+          3: "Text content changes on every refresh, which is exactly what a morph is for."
+        }
+      },
+      {
+        id: "q5",
+        type: "mc",
+        skill: "Alpine.data extraction",
+        q: 'Why must `Alpine.data("card", \u2026)` be called inside an `alpine:init` listener (or before `Alpine.start()`)?',
+        options: [
+          "Because Alpine walks the DOM once at start: registration after that comes too late",
+          "Because otherwise it registers twice",
+          "Because Alpine.data is asynchronous",
+          "It does not matter \u2014 registration order is irrelevant"
+        ],
+        answer: 0,
+        why: 'The tree is initialised once, and `x-data="card"` has to resolve to a registered name during that walk.',
+        distractors: { 3: "Register after the walk and the component name resolves to nothing." }
+      },
+      {
+        id: "q6",
+        type: "short",
+        skill: "loading state",
+        q: "Which method name on a registered component does Alpine call automatically when the component is created? Answer with the name only.",
+        accept: ["init"],
+        why: "`init()` \u2014 the natural home for an initial async load, and for anything that must happen once per instance."
+      }
+    ]
   };
 
-  // src/content/17-stub.js
-  var stub_default5 = {
+  // src/content/17-extending.js
+  var LX45 = Math.round(life.lx(45));
+  var QX2 = 123e-5;
+  var BASES4 = [
+    { id: "vbt", label: "2015 VBT", factor: 1 },
+    { id: "unisex", label: "Unisex annuitant", factor: 1.14 }
+  ];
+  var AGES5 = [45, 50, 55];
+  var MAGIC_CODE = `Alpine.magic('now', () => (new Date).toLocaleTimeString('en-GB'))
+Alpine.magic('money', () => amount => '$' + Number(amount).toLocaleString('en-US'))`;
+  var extending_default = {
     id: "m17",
     num: 17,
     title: "Extending Alpine",
-    blurb: "Alpine.directive, .magic, .plugin, addScopeToNode, deferInit.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    blurb: "Write your own x- directives and $magics, package them as a plugin, and use the low-level hooks Alpine keeps for integrations.",
+    goal: "Grow the framework itself: register extensions before Alpine initialises, and handle components that only arrive later.",
+    intro: `Every directive and magic Alpine ships with is built on the same APIs you get: \`Alpine.directive()\` and \`Alpine.magic()\`. They must be registered **after Alpine is on the page but before it initialises the page** \u2014 with a \`<script>\` tag that means inside an \`alpine:init\` listener.
+
+A directive receives its element, its own shape (\`value\`, \`modifiers\`, \`expression\`) and a toolkit (\`evaluate\`, \`evaluateLater\`, \`effect\`, \`cleanup\`). A magic is a **getter**: return a plain value for \`$name\`, or return a function for \`$name(...)\`.
+
+Wrap the lot in \`Alpine.plugin(fn)\` to ship one installable package \u2014 and when a component arrives late (a module that registers its own \`Alpine.data\`), \`Alpine.interceptInit()\` + \`Alpine.deferInit()\` suspend that subtree until the prerequisite exists.`,
+    skills: ["Alpine.magic", "custom magics", "Alpine.directive", "custom directives", "directive lifecycle", "Alpine.plugin", "plugin packaging", "Alpine.interceptInit", "Alpine.deferInit", "Alpine.addScopeToNode", "Alpine.closestDataStack"],
+    docRefs: [
+      "https://alpinejs.dev/advanced/extending",
+      "https://alpinejs.dev/advanced/async",
+      "https://alpinejs.dev/advanced/reactivity"
+    ],
+    mastery: [
+      "Register a magic and a directive from `alpine:init`, and explain why the timing matters",
+      "Write a directive that re-renders when an expression changes, using `evaluateLater` + `effect`",
+      "Package directives and magics into one `Alpine.plugin()` installable",
+      "Suspend a subtree with `Alpine.deferInit` until a late provider exists, and inject scope before `x-bind` runs"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "Your own $magics",
+        objective: "Register a magic before Alpine starts \u2014 one property magic, one function magic.",
+        brief: `Extension code must run **after Alpine is downloaded, before it initialises the page**. With a script tag, that is an \`alpine:init\` listener:
+
+\`\`\`html
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.magic('now', () => (new Date).toLocaleTimeString('en-GB'))
+  })
+<\/script>
+\`\`\`
+
+\`Alpine.magic(name, (el, { Alpine }) => value)\` registers a **getter**, not a value: \`$now\` is computed on every read, which is why a timestamp is never stale.
+
+Return a function from the getter and the magic becomes a method: \`Alpine.magic('money', () => amount => ...)\` is used as \`$money(1234)\`.`,
+        example: { code: MAGIC_CODE, note: "Property magic vs function magic \u2014 the getter decides which one you get." },
+        starter: `<div x-data="{ reserve: 1234567, stamped: '', clock: '--:--:--', money: '$0' }">
+  <p>valued at <b data-testid="clock" x-text="clock"></b></p>
+  <p>reserve <b data-testid="money" x-text="money"></b></p>
+  <button data-testid="stamp" @click="stamped = clock">stamp the time</button>
+  <p>stamped <b data-testid="stamped" x-text="stamped"></b></p>
+</div>`,
+        solution: `<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.magic('now', () => (new Date).toLocaleTimeString('en-GB'))
+
+    Alpine.magic('money', () => amount => {
+      return '$' + Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })
+    })
+  })
+<\/script>
+
+<div x-data="{ reserve: 1234567, stamped: '' }">
+  <p>valued at <b data-testid="clock" x-text="$now"></b></p>
+  <p>reserve <b data-testid="money" x-text="$money(reserve)"></b></p>
+  <button data-testid="stamp" @click="stamped = $now">stamp the time</button>
+  <p>stamped <b data-testid="stamped" x-text="stamped"></b></p>
+</div>`,
+        hints: [
+          "Both magics belong in the same `alpine:init` listener \u2014 registering after init reaches the page too late.",
+          '`$now` is used bare (`x-text="$now"`), so its getter returns a string. `$money(reserve)` is called, so its getter must return a function.',
+          "Register the names without the `$`: `Alpine.magic('money', ...)` is used as `$money(...)`."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.magic",
+            text: "A `$now` magic must be registered from an `alpine:init` listener and show the current time as `hh:mm:ss`.",
+            checks: [
+              { kind: "code", pattern: "alpine:init" },
+              { kind: "code", pattern: "Alpine\\.magic\\('now'" },
+              { kind: "textMatch", selector: '[data-testid="clock"]', pattern: "^\\d{2}:\\d{2}:\\d{2}$" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "magic function",
+            text: "`$money` must be a function magic that renders 1234567 as $1,234,567.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.magic\\('money'" },
+              { kind: "text", selector: '[data-testid="money"]', value: "$1,234,567" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "magic getter",
+            text: "Because a magic is a getter, reading `$now` again must produce a fresh timestamp: the stamped copy is a real time.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="stamped"]', pattern: "^\\d{2}:\\d{2}:\\d{2}$", do: [{ click: '[data-testid="stamp"]' }, { wait: 120 }] },
+              { kind: "textNotHas", selector: '[data-testid="clock"]', value: "undefined" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "Your own x- directives",
+        objective: "Write a directive that evaluates an expression, stays reactive, and reads its value and modifiers.",
+        brief: `\`\`\`html
+Alpine.directive('[name]', (el, { value, modifiers, expression }, { Alpine, evaluate, evaluateLater, effect, cleanup }) => {})
+\`\`\`
+
+- \`expression\` \u2014 the attribute value: \`law\` in \`x-foo="law"\`
+- \`value\` \u2014 the part after a colon: \`'bar'\` in \`x-foo:bar\`
+- \`modifiers\` \u2014 dot-separated trailing additions: \`['bz', 'lob']\` from \`x-foo.bz.lob\`
+- \`evaluateLater(expression)\` \u2014 compile the expression once and run it whenever you like
+- \`effect(fn)\` \u2014 run now, re-run whenever anything it read changes, and clean up automatically when the element goes away
+
+Use \`evaluateLater\` + \`effect\` rather than \`evaluate\` whenever the directive renders something that must stay in sync.`,
+        example: {
+          code: `Alpine.directive('log', (el, { expression }, { evaluateLater, effect }) => {
+  let get = evaluateLater(expression)
+
+  effect(() => {
+    get(value => console.log(value))
+  })
+})`,
+          note: "effect() fires immediately and re-fires on change; cleanup is handled for you."
+        },
+        starter: `<div x-data="{ q: 0.001, age: 45 }">
+  <p>age <b data-testid="age" x-text="age"></b> \xB7 q\u2093 <span data-testid="qx" x-qx="q"></span></p>
+  <p>to five places: <span data-testid="qx5" x-qx.dp5="q"></span></p>
+  <button data-testid="bump" @click="q = q * 1.5">apply a mortality shock</button>
+  <p><span data-testid="tag" x-tag:warning.bold>tail risk</span></p>
+</div>`,
+        solution: `<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.directive('qx', (el, { expression, modifiers }, { evaluateLater, effect }) => {
+      const places = modifiers.includes('dp5') ? 5 : 3
+      const get = evaluateLater(expression)
+
+      effect(() => {
+        get(value => { el.textContent = (value * 100).toFixed(places) + '%' })
+      })
+    })
+
+    Alpine.directive('tag', (el, { value, modifiers }) => {
+      el.dataset.kind = value || 'plain'
+      if (modifiers.includes('bold')) el.style.fontWeight = '700'
+    })
+  })
+<\/script>
+
+<div x-data="{ q: 0.001, age: 45 }">
+  <p>age <b data-testid="age" x-text="age"></b> \xB7 q\u2093 <span data-testid="qx" x-qx="q"></span></p>
+  <p>to five places: <span data-testid="qx5" x-qx.dp5="q"></span></p>
+  <button data-testid="bump" @click="q = q * 1.5">apply a mortality shock</button>
+  <p><span data-testid="tag" x-tag:warning.bold>tail risk</span></p>
+</div>`,
+        hints: [
+          "`evaluate(expression)` gives you the value once; `evaluateLater(expression)` gives you a reusable function that can also handle `await`.",
+          "The rendering has to happen inside `effect(...)` \u2014 that is what re-runs it when `q` changes.",
+          "In `x-tag:warning.bold`, `value` is `'warning'` and `modifiers` is `['bold']`."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.directive",
+            text: "A custom `x-qx` directive must render the expression as a percentage with three places: `0.001` reads 0.100%.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.directive\\('qx'" },
+              { kind: "code", pattern: "evaluateLater" },
+              { kind: "text", selector: '[data-testid="qx"]', value: "0.100%" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "effect",
+            text: "The directive must stay reactive: after the shock, `x-qx` reads 0.150% and the `.dp5` variant reads 0.15000%.",
+            checks: [
+              { kind: "text", selector: '[data-testid="qx5"]', value: "0.10000%" },
+              { kind: "text", selector: '[data-testid="qx"]', value: "0.150%", do: [{ click: '[data-testid="bump"]' }, { wait: 150 }] },
+              { kind: "text", selector: '[data-testid="qx5"]', value: "0.15000%" },
+              { kind: "code", pattern: "effect\\(" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "value and modifiers",
+            text: "`x-tag:warning.bold` must read its value and modifiers: the chip is a warning chip and it is bold.",
+            checks: [
+              { kind: "attr", selector: '[data-testid="tag"]', name: "data-kind", value: "warning" },
+              { kind: "styleIs", selector: '[data-testid="tag"]', prop: "fontWeight", value: "700" },
+              { kind: "code", pattern: "modifiers" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "Plugins and the internal hooks",
+        objective: "Ship directives and magics as one plugin, inject scope early, and suspend a subtree that must wait.",
+        brief: `**Package it.** \`Alpine.plugin(fn)\` immediately calls \`fn(Alpine)\`, so one import installs everything:
+
+\`\`\`js
+function mortalityTools(Alpine) {
+  Alpine.directive('lx', ...)
+  Alpine.magic('qxPct', ...)
+}
+Alpine.plugin(mortalityTools)
+\`\`\`
+
+**Inject scope.** \`Alpine.addScopeToNode(el, { basis: '2015 VBT' })\` puts data into one element's scope. Combine it with \`.before('bind')\` when a \`x-bind:\` on that same element must see it:
+
+\`\`\`js
+Alpine.directive('basis', (el, { expression }) => {
+  Alpine.addScopeToNode(el, { basis: expression })
+}).before('bind')
+\`\`\`
+
+**Wait for a prerequisite.** \`Alpine.interceptInit(el => {})\` runs for every element just before it initialises; \`Alpine.deferInit(el, promise)\` then suspends that element's tree until the promise settles \u2014 nothing inside it initialises, and \`[x-cloak]\` stays in place. \`Alpine.closestDataStack(el)\` is the scope stack that element would get, which is how integrations decide what to hand it.`,
+        example: {
+          code: `Alpine.interceptInit(el => {
+  if (el.hasAttribute('data-widget') && !widgetIsLoaded(el)) {
+    Alpine.deferInit(el, loadWidget(el))
+  }
+})`,
+          note: "A rejected prerequisite is reported and the tree initialises anyway \u2014 it is never left suspended."
+        },
+        starter: `<div x-data="{ lx: ${LX45}, qx: ${QX2} }">
+  <p><span data-testid="scoped" x-bind:title="'not injected yet'">basis chip</span> \xB7 sibling sees <b data-testid="leak" x-text="typeof basis"></b></p>
+  <p>l\u2093(45) <b data-testid="lx" x-text="lx"></b> \xB7 q\u2093 <b data-testid="pct" x-text="qx"></b></p>
+  <p>deferred: <span data-testid="deferred" data-defer-until-table x-cloak></span></p>
+  <button data-testid="release" @click="window.__releaseTable && window.__releaseTable()">the table module finished downloading</button>
+</div>`,
+        solution: `<script>
+  function mortalityTools(Alpine) {
+    Alpine.directive('lx', (el, { expression }, { evaluateLater, effect }) => {
+      const get = evaluateLater(expression)
+      effect(() => get(v => { el.textContent = Number(v).toLocaleString('en-US') }))
+    })
+
+    Alpine.magic('qxPct', () => q => (q * 100).toFixed(3) + '%')
+  }
+
+  let release
+  const tableReady = new Promise(res => { release = res })
+  window.__releaseTable = () => { window.__tableReleased = true; release() }
+
+  document.addEventListener('alpine:init', () => {
+    Alpine.plugin(mortalityTools)
+
+    Alpine.directive('basis', (el, { expression }, { evaluate }) => {
+      Alpine.addScopeToNode(el, { basis: evaluate(expression) })
+    }).before('bind')
+
+    Alpine.interceptInit(el => {
+      if (!el.hasAttribute('data-defer-until-table')) return
+      if (!window.__tableReleased) Alpine.deferInit(el, tableReady)
+    })
+  })
+<\/script>
+
+<div x-data="{ lx: ${LX45}, qx: ${QX2} }">
+  <p><span data-testid="scoped" x-basis="'2015 VBT'" x-bind:title="basis">basis chip</span> \xB7 sibling sees <b data-testid="leak" x-text="typeof basis"></b></p>
+  <p>l\u2093(45) <b data-testid="lx" x-lx="lx"></b> \xB7 q\u2093 <b data-testid="pct" x-text="$qxPct(qx)"></b></p>
+  <p>deferred: <span data-testid="deferred" data-defer-until-table x-cloak x-init="$el.dataset.stackDepth = Alpine.closestDataStack($el).length" x-text="'table ready'"></span></p>
+  <button data-testid="release" @click="window.__releaseTable()">the table module finished downloading</button>
+</div>`,
+        hints: [
+          "A plugin is just a function that receives `Alpine` \u2014 register the directive and the magic inside it, then hand the function to `Alpine.plugin(...)`.",
+          "`addScopeToNode` only affects the element you pass; the order is what lets `x-bind:title=\"basis\"` read it, hence `.before('bind')`.",
+          "The scope depth is asked for with `Alpine.closestDataStack($el).length` \u2014 but only once the tree really runs, so put it in the resumed element's `x-init`, not in the interceptor (at intercept time the ancestors have not initialised yet, so the stack is empty).",
+          "Defer only while the prerequisite is outstanding. When a suspended tree resumes, the interceptors run again for the elements that had not initialised yet \u2014 an unguarded `deferInit()` suspends them a second time and the tree never comes up."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.plugin",
+            text: "The `x-lx` directive must arrive inside a plugin installed with `Alpine.plugin(...)`, and render 95004 as 95,004.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.plugin\\(" },
+              { kind: "code", pattern: "Alpine\\.directive\\('lx'" },
+              { kind: "text", selector: '[data-testid="lx"]', value: LX45.toLocaleString("en-US") }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.magic",
+            text: "The plugin also ships a `$qxPct` function magic: 0.00123 must read 0.123%.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.magic\\('qxPct'" },
+              { kind: "text", selector: '[data-testid="pct"]', value: "0.123%" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.addScopeToNode",
+            text: '`x-bind:title="basis"` must see the injected scope on its own element (title = 2015 VBT) \u2014 and the injection must not leak to its sibling.',
+            checks: [
+              { kind: "attr", selector: '[data-testid="scoped"]', name: "title", value: "2015 VBT" },
+              { kind: "text", selector: '[data-testid="leak"]', value: "undefined" },
+              { kind: "code", pattern: "addScopeToNode" },
+              { kind: "code", pattern: "\\.before\\('bind'\\)" }
+            ]
+          },
+          {
+            id: "t4",
+            skill: "Alpine.deferInit",
+            text: "The tree marked `data-defer-until-table` must stay suspended \u2014 empty, still cloaked, with nothing initialised \u2014 and come to life (scope depth and all) once the prerequisite settles.",
+            checks: [
+              { kind: "text", selector: '[data-testid="deferred"]', value: "" },
+              { kind: "attrGone", selector: '[data-testid="deferred"]', name: "data-stack-depth" },
+              { kind: "attr", selector: '[data-testid="deferred"]', name: "x-cloak", value: "" },
+              { kind: "text", selector: '[data-testid="deferred"]', value: "table ready", do: [{ click: '[data-testid="release"]' }, { wait: 250 }] },
+              { kind: "attr", selector: '[data-testid="deferred"]', name: "data-stack-depth", value: "1" },
+              { kind: "attrGone", selector: '[data-testid="deferred"]', name: "x-cloak" },
+              { kind: "code", pattern: "Alpine\\.interceptInit\\(" },
+              { kind: "code", pattern: "Alpine\\.deferInit\\(" },
+              { kind: "code", pattern: "closestDataStack" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 a table-tools plugin",
+        objective: "Package one directive and one magic as a plugin, then prove both are available to the whole page.",
+        scenario: `The quote book formats money in six different components and looks up ${BASES4.map((b) => `${b.label} (\xD7${b.factor})`).join(" / ")} in four. Instead of repeating markup in every component, the desk wants one installable package: an \`x-money\` directive (whole dollars, two decimals when the actuary asks for cents) and a \`$basis(id)\` magic that returns \`{ label, factor }\`. Both must work in any component on the page, and the money must follow the underlying value when it changes.`,
+        brief: `Elements: \`data-testid="money0"\` (whole dollars), \`data-testid="money2"\` (cents), \`data-testid="basisLabel"\` and \`data-testid="factor"\` fed by \`$basis('unisex')\`, and \`data-testid="double"\` which doubles \`reserve\` (start: 1234567). Bases: ${BASES4.map((b) => `${b.id} \u2192 ${b.label} \xD7${b.factor}`).join("; ")}. Formats: 1234567 \u2192 $1,234,567 \xB7 with cents \u2192 $1,234,567.00.`,
+        starter: `<div x-data="{ reserve: 1234567, basisLabel: 'not loaded', factor: '\u2014' }">
+  <button data-testid="double" @click="reserve = reserve * 2">double the reserve</button>
+  <p>reserve <b data-testid="money0" x-text="reserve"></b> \xB7 with cents <b data-testid="money2" x-text="reserve"></b></p>
+  <p>basis <b data-testid="basisLabel" x-text="basisLabel"></b> \xB7 factor <b data-testid="factor" x-text="factor"></b></p>
+</div>`,
+        solution: `<script>
+  function tableTools(Alpine) {
+    Alpine.directive('money', (el, { expression, modifiers }, { evaluateLater, effect }) => {
+      const places = modifiers.includes('cents') ? 2 : 0
+      const get = evaluateLater(expression)
+
+      effect(() => {
+        get(value => {
+          el.textContent = '$' + Number(value).toLocaleString('en-US', {
+            minimumFractionDigits: places,
+            maximumFractionDigits: places
+          })
+        })
+      })
+    })
+
+    Alpine.magic('basis', () => {
+      const bases = ${sq(BASES4)}
+      return id => bases.find(b => b.id === id) || bases[0]
+    })
+  }
+
+  document.addEventListener('alpine:init', () => {
+    Alpine.plugin(tableTools)
+  })
+<\/script>
+
+<div x-data="{ reserve: 1234567 }">
+  <button data-testid="double" @click="reserve = reserve * 2">double the reserve</button>
+  <p>reserve <b data-testid="money0" x-money="reserve"></b> \xB7 with cents <b data-testid="money2" x-money.cents="reserve"></b></p>
+  <p>basis <b data-testid="basisLabel" x-text="$basis('unisex').label"></b> \xB7 factor <b data-testid="factor" x-text="$basis('unisex').factor"></b></p>
+</div>`,
+        hints: [
+          "Write `function tableTools(Alpine) { ... }`, register the directive and the magic inside it, and install it with `Alpine.plugin(tableTools)` from `alpine:init`.",
+          "The number of decimals is a modifier, so read `modifiers.includes('cents')` and pass it to `toLocaleString` as `minimumFractionDigits` / `maximumFractionDigits`.",
+          "A magic that takes an argument returns a function from its getter: `Alpine.magic('basis', () => id => ...)` is used as `$basis('unisex')`."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "plugin packaging",
+            text: "One plugin must install the package: `Alpine.plugin(...)` plus an `x-money` directive rendering 1234567 as $1,234,567.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.plugin\\(" },
+              { kind: "code", pattern: "Alpine\\.directive\\('money'" },
+              { kind: "text", selector: '[data-testid="money0"]', value: "$1,234,567" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "modifiers in a directive",
+            text: "The `.cents` modifier must switch the format to two decimals, and the directive must follow the value when the reserve doubles.",
+            checks: [
+              { kind: "text", selector: '[data-testid="money2"]', value: "$1,234,567.00" },
+              { kind: "text", selector: '[data-testid="money0"]', value: "$2,469,134", do: [{ click: '[data-testid="double"]' }, { wait: 150 }] },
+              { kind: "text", selector: '[data-testid="money2"]', value: "$2,469,134.00" },
+              { kind: "code", pattern: "modifiers" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "magic function",
+            text: "The `$basis(id)` magic must return the basis record: `$basis('unisex')` gives Unisex annuitant \xD71.14.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.magic\\('basis'" },
+              { kind: "text", selector: '[data-testid="basisLabel"]', value: "Unisex annuitant" },
+              { kind: "text", selector: '[data-testid="factor"]', value: "1.14" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 a component that arrives late",
+        objective: "Suspend a subtree with interceptInit + deferInit until its Alpine.data provider exists, then let it initialise itself.",
+        scenario: `The mortality-card module is fetched on demand: until it lands, \`Alpine.data('basisCard')\` does not exist and the card must not try to initialise. It must stay cloaked and empty while it waits \u2014 and bootstrap itself the moment the provider is registered, showing one row per age (${AGES5.join(", ")}) and a status of \`ready\`. The integration also wants to know how many scopes deep the card ends up: its own component data plus the surrounding component.`,
+        brief: `Elements: \`data-testid="load"\` (calls \`window.__loadCardModule()\`, provided for you), \`data-testid="card"\` (\`x-cloak\`, \`data-widget="basis-card"\`, \`x-data="basisCard"\`), \`data-testid="status"\`, and one \`data-testid="row"\` per age inside the card. While suspended the card must be empty; afterwards it must render the ages and drop its cloak. Ages: ${AGES5.join(", ")}.`,
+        starter: `<div x-data="{ label: 'Mortality card' }">
+  <button data-testid="load" @click="window.__loadCardModule && window.__loadCardModule()">load the basis-card module</button>
+  <div data-testid="card" data-widget="basis-card" x-cloak x-data="{ ages: [], status: 'module not loaded' }">
+    <p>status <b data-testid="status" x-text="status"></b></p>
+    <template x-for="a in ages" :key="a">
+      <span data-testid="row" x-text="a"></span>
+    </template>
+  </div>
+</div>`,
+        solution: `<script>
+  let release
+  const cardReady = new Promise(res => { release = res })
+
+  window.__loadCardModule = () => {
+    Alpine.data('basisCard', () => ({
+      ages: ${sq(AGES5)},
+      status: 'ready'
+    }))
+    window.__cardLoaded = true
+    release()
+  }
+
+  document.addEventListener('alpine:init', () => {
+    Alpine.interceptInit(el => {
+      if (!el.hasAttribute('data-widget')) return
+      if (!window.__cardLoaded) Alpine.deferInit(el, cardReady)
+    })
+  })
+<\/script>
+
+<div x-data="{ label: 'Mortality card' }">
+  <button data-testid="load" @click="window.__loadCardModule()">load the basis-card module</button>
+  <div data-testid="card" data-widget="basis-card" x-cloak x-data="basisCard" x-init="$el.dataset.stackDepth = Alpine.closestDataStack($el).length">
+    <p>status <b data-testid="status" x-text="status"></b></p>
+    <template x-for="a in ages" :key="a">
+      <span data-testid="row" x-text="a"></span>
+    </template>
+  </div>
+</div>`,
+        hints: [
+          "`Alpine.interceptInit` runs for every element before it initialises: look for `data-widget` and defer that element with the promise.",
+          "`Alpine.deferInit(el, cardReady)` suspends the element and everything inside it \u2014 nothing initialises, and `x-cloak` stays put.",
+          "Only defer while the prerequisite is outstanding (`if (!window.__cardLoaded)`), otherwise the resume pass would suspend the card all over again.",
+          "The card records its own scope depth in `x-init` with `Alpine.closestDataStack($el).length` \u2014 asked for once the card runs it counts 2: the card's own component data plus the surrounding component."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.interceptInit",
+            text: "While the module is outstanding the card must be suspended: no status text at all, and nothing initialised in the card.",
+            checks: [
+              { kind: "text", selector: '[data-testid="status"]', value: "" },
+              { kind: "attrGone", selector: '[data-testid="card"]', name: "data-stack-depth" },
+              { kind: "code", pattern: "Alpine\\.interceptInit\\(" },
+              { kind: "code", pattern: "Alpine\\.deferInit\\(" },
+              { kind: "code", pattern: "closestDataStack" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.deferInit",
+            text: "Loading the module must release the card: status `ready`, rows rendered, cloak gone.",
+            checks: [
+              { kind: "text", selector: '[data-testid="status"]', value: "ready", do: [{ click: '[data-testid="load"]' }, { wait: 300 }] },
+              { kind: "count", selector: '[data-testid="row"]', value: 3 },
+              { kind: "attr", selector: '[data-testid="card"]', name: "data-stack-depth", value: "2" },
+              { kind: "attrGone", selector: '[data-testid="card"]', name: "x-cloak" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.data",
+            text: "The provider must be the card's own component definition, listing the ages in order.",
+            checks: [
+              { kind: "list", selector: '[data-testid="row"]', values: AGES5.map(String) },
+              { kind: "code", pattern: "Alpine\\.data\\('basisCard'" }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "registration timing",
+        q: "Alpine is loaded with a plain script tag. Where does `Alpine.magic()` belong?",
+        options: [
+          "Inside `document.addEventListener('alpine:init', () => { ... })`",
+          "Anywhere in the page \u2014 Alpine resolves magics lazily on first use",
+          "Inside `Alpine.start()`",
+          "After `alpine:initialized` fires"
+        ],
+        answer: 0,
+        why: "Extensions must exist after Alpine is downloaded and before it initialises the page; with a script tag, `alpine:init` is exactly that window. Bundle users register between `import Alpine` and `Alpine.start()`.",
+        distractors: {
+          1: "Magics are looked up while the page initialises, so a later registration is simply not there yet.",
+          3: "`alpine:initialized` fires after the initialisation pass \u2014 far too late."
+        }
+      },
+      {
+        id: "q2",
+        type: "mc",
+        skill: "magic getter",
+        q: "Why does a `$now` magic registered as `Alpine.magic('now', () => (new Date).toLocaleTimeString())` produce a fresh time on every read?",
+        options: [
+          "Because `Alpine.magic` registers a getter \u2014 the callback runs on each access",
+          "Because Alpine polls every registered magic twice a second",
+          "Because the magic is a reactive property that Alpine tracks like `x-data` state",
+          "It does not \u2014 you would have to call `$now()`"
+        ],
+        answer: 0,
+        why: "A magic is a getter evaluated at every access, which is why returning a function from the getter is how you author `$name(...)` function magics.",
+        distractors: {
+          3: "That is the syntax for a function magic; a bare `$now` is the property form."
+        }
+      },
+      {
+        id: "q3",
+        type: "multi",
+        skill: "Alpine.directive",
+        q: "What does a custom directive receive?",
+        options: [
+          "`el` \u2014 the element the directive is on",
+          "`{ value, modifiers, expression }` \u2014 the directive's own shape (`x-qx.dp5=\"q\"` \u2192 value `undefined`, modifiers `['dp5']`, expression `'q'`)",
+          "`{ Alpine, evaluate, evaluateLater, effect, cleanup }` \u2014 the toolkit handed to the callback",
+          "The page's Alpine store collection"
+        ],
+        answers: [0, 1, 2],
+        why: "Element, shape, toolkit: those three arguments cover everything a directive can read or do, and `cleanup` is how listeners and timers are removed when the element goes away.",
+        distractors: { 3: "Stores are not passed in; use `Alpine.store(...)` if a directive needs shared data." }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "Alpine.addScopeToNode",
+        q: 'Your `x-basis` directive injects `{ basis: "2015 VBT" }` into the element, but `x-bind:title="basis"` on that same element still logs `undefined`. What is missing?',
+        options: [
+          "Chain `.before('bind')` so the injection happens before the bind directive runs",
+          "Wrap the element in another `x-data`",
+          "Use `Alpine.addScopeToNode(el.parentElement, ...)`",
+          "Register the directive as a plugin"
+        ],
+        answer: 0,
+        why: "Custom directives run after the standard ones by default. `Alpine.directive('basis', ...).before('bind')` moves yours ahead of `x-bind`, so the binding sees the injected scope.",
+        distractors: {
+          1: "An extra `x-data` creates a nested component \u2014 it does not put `basis` into this element's scope."
+        }
+      },
+      {
+        id: "q5",
+        type: "mc",
+        skill: "Alpine.deferInit",
+        q: "A tree is suspended with `Alpine.deferInit(el, promise)` and the promise **rejects**. What happens?",
+        options: [
+          "Alpine reports the rejection through its error handler, then the tree initialises anyway",
+          "The tree stays suspended forever",
+          "The element is removed from the DOM",
+          "Alpine retries the promise on the next animation frame"
+        ],
+        answer: 0,
+        why: "A failed prerequisite never leaves a tree permanently suspended \u2014 it is reported and the tree resumes. (A promise that never settles, on the other hand, does leave it suspended, so put timeouts on operations you hand to Alpine.)",
+        distractors: {
+          3: "There is no automatic retry: register the promise again, or handle the failure in your own code."
+        }
+      },
+      {
+        id: "q6",
+        type: "multi",
+        skill: "Alpine.deferInit",
+        q: "Which statements about `Alpine.interceptInit` and `Alpine.deferInit` are true?",
+        options: [
+          "`interceptInit` callbacks run for every element, just before that element initialises",
+          "`[x-cloak]` attributes inside a suspended tree stay in place until it resumes",
+          "`alpine:initialized` waits for suspended trees before firing",
+          "Calling `deferInit` again before the tree resumes adds another prerequisite \u2014 the tree waits for all of them"
+        ],
+        answers: [0, 1, 3],
+        why: "The hook is per-element and pre-init; suspension is a real pause (cloaks included) that can stack prerequisites; and `alpine:initialized` fires when the synchronous pass over the page completes, suspended trees or not.",
+        distractors: { 2: 'It fires when the synchronous pass finishes \u2014 do not treat it as "everything is ready" when you defer trees.' }
+      }
+    ]
   };
 
-  // src/content/18-stub.js
-  var stub_default6 = {
+  // src/content/18-reactivity.js
+  var aDue = (i) => (1 - Math.pow(1 + i, -20)) / (i / (1 + i));
+  var RATE = 0.03;
+  var reactivity_default = {
     id: "m18",
     num: 18,
     title: "Reactivity from the source",
-    blurb: "Alpine.reactive, Alpine.effect, Alpine.raw, Alpine.release.",
-    goal: "Placeholder module \u2014 content lands in a later commit.",
-    intro: "This module is being written.",
-    skills: ["pending"],
-    docRefs: [],
-    mastery: ["Placeholder"],
-    units: [],
-    stub: true,
-    quiz: []
+    blurb: "The two functions everything else is built on \u2014 Alpine.reactive and Alpine.effect \u2014 plus the escape hatches Alpine.raw and Alpine.release.",
+    goal: "Understand and drive Alpine's reactivity directly: make plain objects reactive, run effects on them, and know how to step outside the proxy.",
+    intro: `Every bit of reactivity in Alpine \u2014 \`x-data\`, \`x-text\`, \`x-effect\`, \`$watch\`, stores \u2014 is put together from two functions:
+
+- **\`Alpine.reactive(obj)\`** returns a *proxy* of \`obj\`: a thin wrapper that behaves exactly like the original, except that Alpine now knows every read and write. Writes are visible on the original object too.
+- **\`Alpine.effect(fn)\`** runs \`fn\` immediately and records every reactive property it reads *while it runs*. When one of those properties changes, \`fn\` runs again. That dependency map is the whole trick.
+
+Two footnotes decide most real-life bugs: reads that happen **after** the callback returns (inside a \`setTimeout\`, an event handler, an \`await\`) are not tracked; and \`Alpine.raw(obj)\` hands you the underlying, non-reactive object so a library \u2014 or a deliberately untracked read \u2014 can step outside the proxy. \`Alpine.release(runner)\` stops an effect for good.`,
+    skills: ["Alpine.reactive", "Alpine.effect", "dependency tracking", "Alpine.raw", "Alpine.release", "reactive proxies", "effect cleanup"],
+    docRefs: [
+      "https://alpinejs.dev/advanced/reactivity",
+      "https://alpinejs.dev/advanced/extending",
+      "https://alpinejs.dev/directives/effect"
+    ],
+    mastery: [
+      "Make a plain object reactive with `Alpine.reactive` and drive the page from effects",
+      "Predict exactly which reads an effect tracks \u2014 and which of them it does not",
+      "Reach for `Alpine.raw` when a read must not be tracked, and explain why the original object still changes",
+      "Stop an effect with `Alpine.release(runner)` and keep its last value in the interface"
+    ],
+    units: [
+      {
+        id: "s1",
+        title: "Reactive data, driven by effects",
+        objective: "Wrap a plain object, render it from an effect, and watch writes reach the original object.",
+        brief: `No markup needed \u2014 this is the reactivity engine itself:
+
+\`\`\`js
+const plain = { rate: 0.031 }
+const data = Alpine.reactive(plain)
+
+Alpine.effect(() => {
+  span.textContent = (data.rate * 100).toFixed(2) + '%'   // read -> dependency
+})
+
+data.rate = 0.04   // the effect runs again
+\`\`\`
+
+\`Alpine.reactive\` returns a **proxy**, not a copy: \`data.rate = 0.04\` really does set \`plain.rate\`, which is why \`Alpine.raw(data) === plain\`.
+
+An effect runs **once immediately**, then again on every change to something it read.`,
+        example: {
+          code: `let data = Alpine.reactive({ count: 1 })
+
+Alpine.effect(() => {
+  console.log(data.count)        // logs 1 now, and again after every change
+})`,
+          note: "Effect + reactive is the mechanism behind x-effect, x-text and every store in Alpine."
+        },
+        starter: `<p>rate <b data-testid="rate"></b> \xB7 the plain object says <b data-testid="plain"></b> \xB7 audit lines <b data-testid="ticks"></b> \xB7 <code>raw === plain</code> <b data-testid="identity"></b></p>
+<button data-testid="tick">+25 bp</button>`,
+        solution: `<p>rate <b data-testid="rate"></b> \xB7 the plain object says <b data-testid="plain"></b> \xB7 audit lines <b data-testid="ticks"></b> \xB7 <code>raw === plain</code> <b data-testid="identity"></b></p>
+<button data-testid="tick">+25 bp</button>
+
+<script>
+  const plain = { rate: 0.031, ticks: 0 }
+  const data = Alpine.reactive(plain)
+
+  const el = id => document.querySelector(\`[data-testid="\${id}"]\`)
+
+  // the read happens during the run -> this effect re-runs when data.rate changes
+  Alpine.effect(() => {
+    el('rate').textContent = (data.rate * 100).toFixed(2) + '%'
+    el('plain').textContent = plain.rate.toFixed(4)
+  })
+
+  // the same data, counted. The counter lives on the *raw* object, so writing it
+  // cannot re-trigger this effect.
+  Alpine.effect(() => {
+    data.rate
+    el('ticks').textContent = ++plain.ticks
+  })
+
+  el('identity').textContent = String(Alpine.raw(data) === plain)
+
+  document.querySelector('[data-testid="tick"]').addEventListener('click', () => {
+    data.rate = data.rate + 0.0025
+  })
+<\/script>`,
+        hints: [
+          "Everything below the markup is plain JavaScript: query the elements once, then let effects write into them.",
+          "The first effect must *read* `data.rate` during the run \u2014 that read is what registers the dependency.",
+          "Count into the raw object (`plain.ticks = plain.ticks + 1`), not into a reactive property the same effect reads: that is how you avoid an effect that triggers itself."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.reactive",
+            text: "The object must be made reactive with `Alpine.reactive`, the rate rendered by an effect, and `Alpine.raw(data) === plain` reported as true.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.reactive\\(" },
+              { kind: "code", pattern: "Alpine\\.effect\\(" },
+              { kind: "text", selector: '[data-testid="rate"]', value: "3.10%" },
+              { kind: "text", selector: '[data-testid="identity"]', value: "true" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.effect",
+            text: "Changing the reactive property must re-run the effects: the rate moves and the audit counter goes up.",
+            checks: [
+              { kind: "text", selector: '[data-testid="ticks"]', value: "1" },
+              { kind: "text", selector: '[data-testid="rate"]', value: "3.35%", do: [{ click: '[data-testid="tick"]' }, { wait: 150 }] },
+              { kind: "textMatch", selector: '[data-testid="ticks"]', pattern: "^[2-9]\\d*$" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.raw",
+            text: "A write through the proxy must be visible on the original object \u2014 that is what `Alpine.raw` hands back.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.raw\\(" },
+              { kind: "textMatch", selector: '[data-testid="plain"]', pattern: "^0\\.03[5-9]\\d$", do: [{ click: '[data-testid="tick"]' }, { wait: 150 }] },
+              { kind: "textMatch", selector: '[data-testid="rate"]', pattern: "^3\\.[3-9]\\d%$" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s2",
+        title: "What an effect really tracks",
+        objective: "See the dependency rule: only reads made while the callback runs are tracked.",
+        brief: `An effect tracks the properties read **between the moment it starts and the moment it returns**. Reads made later \u2014 in a \`setTimeout\`, in an event handler, after an \`await\` \u2014 belong to no effect at all.
+
+\`\`\`js
+Alpine.effect(() => {
+  const snapshot = state.t          // tracked read
+  setTimeout(() => {
+    out.textContent = snapshot       // fine: the value was read above
+  }, 0)
+})
+
+Alpine.effect(() => {
+  setTimeout(() => {
+    out.textContent = state.t        // NOT tracked: this effect runs exactly once
+  }, 0)
+})
+\`\`\`
+
+If an effect is supposed to react to something, read it synchronously first \u2014 or it will silently go stale the first time the data moves.`,
+        example: {
+          code: `Alpine.effect(() => {
+  let rate = state.rate                 // read here -> tracked
+  chart.draw(() => render(state.rate))  // and here -> tracked
+  requestAnimationFrame(() => label.textContent = rate)   // uses the snapshot: fine
+})`,
+          note: "Snapshot first, then branch out into callbacks that run later."
+        },
+        starter: `<p>watched <b data-testid="watched"></b> \xB7 snapshot <b data-testid="snapshot"></b> \xB7 stale <b data-testid="stale"></b></p>
+<button data-testid="step">advance the valuation date</button>`,
+        solution: `<p>watched <b data-testid="watched"></b> \xB7 snapshot <b data-testid="snapshot"></b> \xB7 stale <b data-testid="stale"></b></p>
+<button data-testid="step">advance the valuation date</button>
+
+<script>
+  const state = Alpine.reactive({ t: 0 })
+  const el = id => document.querySelector(\`[data-testid="\${id}"]\`)
+  let watchedRuns = 0, staleRuns = 0
+
+  // read in the callback body: tracked, so this re-runs whenever state.t changes
+  Alpine.effect(() => {
+    watchedRuns++
+    el('watched').textContent = 't=' + state.t + ' (run ' + watchedRuns + ')'
+  })
+
+  // read in the callback body, used inside the timeout: correct
+  Alpine.effect(() => {
+    const snapshot = state.t
+    setTimeout(() => { el('snapshot').textContent = 'timeout sees t=' + snapshot }, 0)
+  })
+
+  // ONLY read after the callback returned: nothing is tracked, so it never re-runs
+  Alpine.effect(() => {
+    staleRuns++
+    setTimeout(() => { el('stale').textContent = 'timeout sees t=' + state.t + ' (run ' + staleRuns + ')' }, 0)
+  })
+
+  document.querySelector('[data-testid="step"]').addEventListener('click', () => { state.t = state.t + 1 })
+<\/script>`,
+        hints: [
+          "Two of the three effects are correct. The third reads its dependency only inside `setTimeout`, so it has no dependencies and runs once.",
+          "The fix for the stale one is a snapshot: read `state.t` in the callback body and use that value inside the timeout.",
+          "Each effect keeps its own run counter in a plain variable, so the run counts are visible in the interface."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "dependency tracking",
+            text: "Three effects, three readouts \u2014 and all of them show the state of `t` at the moment they ran.",
+            checks: [
+              { kind: "code", pattern: "setTimeout" },
+              { kind: "textMatch", selector: '[data-testid="watched"]', pattern: "^t=0 \\(run 1\\)$", do: [{ wait: 150 }] },
+              { kind: "textMatch", selector: '[data-testid="snapshot"]', pattern: "^timeout sees t=0$" },
+              { kind: "textMatch", selector: '[data-testid="stale"]', pattern: "^timeout sees t=0 \\(run 1\\)$" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "dependency tracking",
+            text: "After one advance the tracked readout and the snapshot follow `t`, while the untracked one is still stuck on its first run.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="watched"]', pattern: "^t=1 \\(run [2-9]\\d*\\)$", do: [{ click: '[data-testid="step"]' }, { wait: 200 }] },
+              { kind: "textMatch", selector: '[data-testid="snapshot"]', pattern: "^timeout sees t=1$" },
+              { kind: "textMatch", selector: '[data-testid="stale"]', pattern: "^timeout sees t=0 \\(run 1\\)$" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "effect cleanup",
+            text: "Two more advances: the tracked effect keeps up, the untracked one still has exactly one run to its name.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="watched"]', pattern: "^t=3 \\(run [4-9]\\d*\\)$", do: [{ click: '[data-testid="step"]' }, { wait: 160 }, { click: '[data-testid="step"]' }, { wait: 200 }] },
+              { kind: "textMatch", selector: '[data-testid="stale"]', pattern: "\\(run 1\\)$" },
+              { kind: "textMatch", selector: '[data-testid="snapshot"]', pattern: "^timeout sees t=3$" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "s3",
+        title: "Stepping outside the proxy: raw and release",
+        objective: "Read without tracking, and stop an effect you no longer need.",
+        brief: `**\`Alpine.raw(proxy)\`** gives you the underlying object. It is the original, not a copy (\`Alpine.raw(data) === plain\`), and reads made through it are **not** tracked:
+
+\`\`\`js
+Alpine.effect(() => {
+  log.textContent = Alpine.raw(store).rate      // never re-runs: nothing was tracked
+})
+\`\`\`
+
+That is exactly what you want when a library takes your data and you do not want its internal reads to become dependencies \u2014 or when an effect must survive without re-running.
+
+**\`Alpine.release(runner)\`** stops an effect for good. \`Alpine.effect(callback)\` returns the effect's runner function, and that is what you hand to \`release\`:
+
+\`\`\`js
+const runner = Alpine.effect(() => { \u2026 })
+Alpine.release(runner)          // this effect will never run again
+\`\`\`
+
+(Alpine uses the same call internally when it discards a subtree \u2014 which is why you should not keep writing into an effect you have released: it will happily ignore you.)`,
+        example: {
+          code: `const store = Alpine.reactive({ rate: 0.03 })
+
+const runner = Alpine.effect(() => {
+  label.textContent = store.rate.toFixed(4)
+})
+
+Alpine.release(runner)      // stop when the panel closes`,
+          note: "raw() = look without tracking \xB7 release(runner) = stop listening"
+        },
+        starter: `<p><b data-testid="tracked"></b> \xB7 <b data-testid="untracked"></b> \xB7 raw is the original object: <b data-testid="identity"></b></p>
+<button data-testid="bump">+20 bp</button>
+<button data-testid="stop">release the effect</button>
+<p>frozen at run <b data-testid="stoppedAt"></b> \xB7 still at <b data-testid="atStop"></b></p>`,
+        solution: `<p><b data-testid="tracked"></b> \xB7 <b data-testid="untracked"></b> \xB7 raw is the original object: <b data-testid="identity"></b></p>
+<button data-testid="bump">+20 bp</button>
+<button data-testid="stop">release the effect</button>
+<p>frozen at run <b data-testid="stoppedAt"></b> \xB7 still at <b data-testid="atStop"></b></p>
+
+<script>
+  const plain = { rate: 0.031 }
+  const store = Alpine.reactive(plain)
+  const el = id => document.querySelector(\`[data-testid="\${id}"]\`)
+  let liveRuns = 0, rawRuns = 0
+
+  const tracked = Alpine.effect(() => {
+    liveRuns++
+    el('tracked').textContent = 'tracked: ' + store.rate.toFixed(4) + ' (run ' + liveRuns + ')'
+  })
+
+  // read through raw(): nothing is tracked, so this effect runs exactly once
+  Alpine.effect(() => {
+    rawRuns++
+    el('untracked').textContent = 'raw read: ' + Alpine.raw(store).rate.toFixed(4) + ' (run ' + rawRuns + ')'
+  })
+
+  el('identity').textContent = String(Alpine.raw(store) === plain)
+
+  document.querySelector('[data-testid="bump"]').addEventListener('click', () => {
+    store.rate = store.rate + 0.002
+    el('atStop').textContent = liveRuns        // how many runs the (possibly released) effect has had
+  })
+
+  document.querySelector('[data-testid="stop"]').addEventListener('click', () => {
+    Alpine.release(tracked)
+    el('stoppedAt').textContent = liveRuns
+  })
+<\/script>`,
+        hints: [
+          "The second effect reads `Alpine.raw(store).rate` \u2014 the raw object knows nothing about Alpine, so no dependency is registered and it runs once.",
+          "Keep the runner returned by `Alpine.effect(...)` in a variable: that is the argument `Alpine.release()` wants.",
+          "Report the run count in two places: once when you release, once on the next change \u2014 identical numbers are the proof the effect really stopped."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.raw",
+            text: "Both effects run once at start-up, and `Alpine.raw(store) === plain` is reported as true.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.raw\\(" },
+              { kind: "textMatch", selector: '[data-testid="tracked"]', pattern: "^tracked: 0\\.0310 \\(run 1\\)$" },
+              { kind: "textMatch", selector: '[data-testid="untracked"]', pattern: "^raw read: 0\\.0310 \\(run 1\\)$" },
+              { kind: "text", selector: '[data-testid="identity"]', value: "true" }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "dependency tracking",
+            text: "A change moves the tracked readout to 0.0330 \u2014 and leaves the raw read at its first value, because nothing was tracked.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="tracked"]', pattern: "^tracked: 0\\.0330 \\(run 2\\)$", do: [{ click: '[data-testid="bump"]' }, { wait: 150 }] },
+              { kind: "textMatch", selector: '[data-testid="untracked"]', pattern: "^raw read: 0\\.0310 \\(run 1\\)$" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.release",
+            text: "After `Alpine.release(runner)` the store can keep changing: the effect never runs again, so the two run counts agree.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.release\\(" },
+              { kind: "custom", name: "sameText", selector: '[data-testid="stoppedAt"]', selector2: '[data-testid="atStop"]', do: [{ click: '[data-testid="stop"]' }, { click: '[data-testid="bump"]' }, { wait: 200 }] },
+              { kind: "textMatch", selector: '[data-testid="tracked"]', pattern: "^tracked: 0\\.0330 \\(run 2\\)$" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e1",
+        kind: "exercise",
+        title: "Exercise \u2014 a live basis feed",
+        objective: "Drive an interval-fed reactive store with effects, and freeze it on demand with release.",
+        scenario: `The quote desk watches the ${(RATE * 100).toFixed(1)} % basis move during the day: every tick pushes the rate up by 4 bp, and the screen must show the current rate, the 20-year temporary annuity-due per unit of sum assured (${aDue(RATE).toFixed(4)} at ${(RATE * 100).toFixed(1)} %), and a count of how many times the feed effect has run. Starting, stopping and nudging are separate buttons \u2014 and after a stop the feed must be dead: no readout may move again, even though the store keeps its new value.`,
+        brief: `Elements: \`data-testid="start"\` (a tick every 120 ms, +4 bp each), \`data-testid="stop"\` (stops the timer, releases the effect, writes the run count into \`data-testid="frozen"\`), \`data-testid="nudge"\` (one more +4 bp by hand, and it also writes the current store rate into \`data-testid="rateNow"\`), and the readouts \`rate\` (\`3.000%\` style, three places), \`adue\` (four places), \`ticks\`, \`frozen\`, \`rateNow\`. Annuity-due factor: \`(1 \u2212 (1+i)\u207B\xB2\u2070) / (i/(1+i))\` for a 20-year term.`,
+        starter: `<p>rate <b data-testid="rate"></b> \xB7 \xE4\u2082\u2080 <b data-testid="adue"></b> \xB7 effect runs <b data-testid="ticks"></b> \xB7 frozen <b data-testid="frozen"></b> \xB7 store now <b data-testid="rateNow"></b></p>
+<div class="row">
+  <button data-testid="start">start the feed</button>
+  <button data-testid="stop">stop and release</button>
+  <button data-testid="nudge">+4 bp by hand</button>
+</div>`,
+        solution: `<p>rate <b data-testid="rate"></b> \xB7 \xE4\u2082\u2080 <b data-testid="adue"></b> \xB7 effect runs <b data-testid="ticks"></b> \xB7 frozen <b data-testid="frozen"></b> \xB7 store now <b data-testid="rateNow"></b></p>
+<div class="row">
+  <button data-testid="start">start the feed</button>
+  <button data-testid="stop">stop and release</button>
+  <button data-testid="nudge">+4 bp by hand</button>
+</div>
+
+<script>
+  const plain = { rate: ${RATE}, ticks: 0 }
+  const store = Alpine.reactive(plain)
+  const el = id => document.querySelector(\`[data-testid="\${id}"]\`)
+
+  const annuityDue = i => (1 - Math.pow(1 + i, -20)) / (i / (1 + i))
+
+  const feed = Alpine.effect(() => {
+    el('rate').textContent = (store.rate * 100).toFixed(3) + '%'
+    el('adue').textContent = annuityDue(store.rate).toFixed(4)
+    el('ticks').textContent = ++plain.ticks
+  })
+
+  let timer = null
+  document.querySelector('[data-testid="start"]').addEventListener('click', () => {
+    if (timer) return
+    timer = setInterval(() => { store.rate = Number((store.rate + 0.0004).toFixed(4)) }, 120)
+  })
+
+  document.querySelector('[data-testid="stop"]').addEventListener('click', () => {
+    if (timer) { clearInterval(timer); timer = null }
+    Alpine.release(feed)
+    el('frozen').textContent = plain.ticks
+  })
+
+  document.querySelector('[data-testid="nudge"]').addEventListener('click', () => {
+    store.rate = Number((store.rate + 0.0004).toFixed(4))
+    el('rateNow').textContent = plain.rate.toFixed(4)
+  })
+<\/script>`,
+        hints: [
+          "One effect, three readouts: everything the screen shows comes from a single tracked read of `store.rate`.",
+          "Keep the runner: `const feed = Alpine.effect(...)` \u2014 the stop button hands that to `Alpine.release(feed)`.",
+          "The interval lives in a plain variable and is cleared on stop; after the release, `store.rate` still changes but no readout follows it \u2014 which is exactly what `rateNow` vs `rate` shows."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.reactive",
+            text: "The store must be reactive and effect-driven: the feed starts at 3.000% with \xE4\u2082\u2080 rendered, and the runner is kept for release.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.reactive\\(" },
+              { kind: "code", pattern: "Alpine\\.effect\\(" },
+              { kind: "code", pattern: "Alpine\\.release\\(" },
+              { kind: "text", selector: '[data-testid="rate"]', value: "3.000%" },
+              { kind: "text", selector: '[data-testid="adue"]', value: aDue(RATE).toFixed(4) }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "Alpine.effect",
+            text: "Starting the feed must push the rate and re-run the effect on every tick.",
+            checks: [
+              { kind: "text", selector: '[data-testid="ticks"]', value: "1" },
+              { kind: "textMatch", selector: '[data-testid="ticks"]', pattern: "^[2-9]\\d*$", do: [{ click: '[data-testid="start"]' }, { wait: 520 }] },
+              { kind: "textMatch", selector: '[data-testid="rate"]', pattern: "^3\\.[0-9]{3}%$" },
+              { kind: "textNotHas", selector: '[data-testid="rate"]', value: "3.000%" }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.release",
+            text: "After `stop` the feed is dead but the store is not: a hand nudge moves the store while the frozen count and the rendered rate stay put.",
+            checks: [
+              { kind: "custom", name: "sameText", selector: '[data-testid="frozen"]', selector2: '[data-testid="ticks"]', do: [{ click: '[data-testid="stop"]' }, { click: '[data-testid="nudge"]' }, { wait: 200 }] },
+              { kind: "custom", name: "differentText", selector: '[data-testid="rate"]', selector2: '[data-testid="rateNow"]' },
+              { kind: "textMatch", selector: '[data-testid="rateNow"]', pattern: "^0\\.03[0-9]{2}$" },
+              { kind: "textMatch", selector: '[data-testid="ticks"]', pattern: "^[1-9]\\d*$" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "e2",
+        kind: "exercise",
+        title: "Exercise \u2014 the audit trail",
+        objective: "Keep a running trail from an effect without triggering it again, and stop the trail on demand.",
+        scenario: `Every change to the valuation rate has to be written down: one line per run of the audit effect, the count on screen, and a serialised export of the store for the file. The trick is to keep the trail in a plain (non-reactive) buffer \u2014 an effect that reads its own output re-runs itself forever. When the desk closes the review, the trail must stop for good while the store keeps its value.`,
+        brief: `Elements: \`data-testid="count"\` (lines in the trail), \`data-testid="last"\` (the newest line, \`rate 0.0400\` style), \`data-testid="export"\` (JSON of the raw store), \`data-testid="identity"\` (whether \`Alpine.raw(store)\` is the original object), \`data-testid="bump"\` (+25 bp), \`data-testid="refresh"\` (re-writes the export), \`data-testid="stop"\` (releases the audit effect and writes the line count into \`data-testid="frozen"\`), plus \`data-testid="atStop"\` and \`data-testid="rateNow"\`, both written by the \`bump\` handler. Start: rate 0.04, one line already in the trail.`,
+        starter: `<p>lines <b data-testid="count"></b> \xB7 newest <b data-testid="last"></b> \xB7 rate now <b data-testid="rateNow"></b></p>
+<p>export <code data-testid="export"></code> \xB7 raw is the store object itself: <b data-testid="identity"></b></p>
+<p>frozen at <b data-testid="frozen"></b> \xB7 still at <b data-testid="atStop"></b></p>
+<div class="row">
+  <button data-testid="bump">+25 bp</button>
+  <button data-testid="refresh">refresh the export</button>
+  <button data-testid="stop">stop the trail</button>
+</div>`,
+        solution: `<p>lines <b data-testid="count"></b> \xB7 newest <b data-testid="last"></b> \xB7 rate now <b data-testid="rateNow"></b></p>
+<p>export <code data-testid="export"></code> \xB7 raw is the store object itself: <b data-testid="identity"></b></p>
+<p>frozen at <b data-testid="frozen"></b> \xB7 still at <b data-testid="atStop"></b></p>
+<div class="row">
+  <button data-testid="bump">+25 bp</button>
+  <button data-testid="refresh">refresh the export</button>
+  <button data-testid="stop">stop the trail</button>
+</div>
+
+<script>
+  const plain = { rate: 0.04, trail: [] }
+  const store = Alpine.reactive(plain)
+  const el = id => document.querySelector(\`[data-testid="\${id}"]\`)
+
+  const audit = Alpine.effect(() => {
+    const rate = store.rate                       // the only tracked read
+    plain.trail.push('rate ' + rate.toFixed(4))   // a plain buffer: writing here cannot re-trigger the effect
+    el('count').textContent = plain.trail.length
+    el('last').textContent = plain.trail[plain.trail.length - 1]
+  })
+
+  const writeExport = () => { el('export').textContent = JSON.stringify(Alpine.raw(store)) }
+
+  el('identity').textContent = String(Alpine.raw(store) === plain)
+  writeExport()
+
+  document.querySelector('[data-testid="bump"]').addEventListener('click', () => {
+    store.rate = Number((store.rate + 0.0025).toFixed(4))
+    el('rateNow').textContent = plain.rate.toFixed(4)
+    el('atStop').textContent = plain.trail.length
+  })
+
+  document.querySelector('[data-testid="refresh"]').addEventListener('click', writeExport)
+
+  document.querySelector('[data-testid="stop"]').addEventListener('click', () => {
+    Alpine.release(audit)
+    el('frozen').textContent = plain.trail.length
+  })
+<\/script>`,
+        hints: [
+          "Keep the trail in the raw object (`plain.trail`) and only read `store.rate` in the effect \u2014 otherwise the effect reads what it writes and runs forever.",
+          "The export is a snapshot of the raw store: `JSON.stringify(Alpine.raw(store))`.",
+          "Two run counts, again: one written when you release, one written by the bump handler \u2014 equal numbers mean the trail really stopped."
+        ],
+        tasks: [
+          {
+            id: "t1",
+            skill: "Alpine.effect",
+            text: "The audit effect must have run once at start-up, leaving one line, and `Alpine.raw(store)` must be the original object.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.effect\\(" },
+              { kind: "code", pattern: "Alpine\\.raw\\(" },
+              { kind: "text", selector: '[data-testid="count"]', value: "1" },
+              { kind: "text", selector: '[data-testid="last"]', value: "rate 0.0400" },
+              { kind: "text", selector: '[data-testid="identity"]', value: "true" },
+              { kind: "textHas", selector: '[data-testid="export"]', value: '"rate":0.04' }
+            ]
+          },
+          {
+            id: "t2",
+            skill: "dependency tracking",
+            text: "A bump must append exactly one line, name it after the new rate, and show up in a refreshed export.",
+            checks: [
+              { kind: "textMatch", selector: '[data-testid="count"]', pattern: "^[2-9]\\d*$", do: [{ click: '[data-testid="bump"]' }, { wait: 150 }] },
+              { kind: "text", selector: '[data-testid="last"]', value: "rate 0.0425" },
+              { kind: "textHas", selector: '[data-testid="export"]', value: '"rate":0.0425', do: [{ click: '[data-testid="refresh"]' }, { wait: 100 }] }
+            ]
+          },
+          {
+            id: "t3",
+            skill: "Alpine.release",
+            text: "After `stop` the trail must be closed: the store moves on, the trail does not, and both run counts agree.",
+            checks: [
+              { kind: "code", pattern: "Alpine\\.release\\(" },
+              { kind: "custom", name: "sameText", selector: '[data-testid="frozen"]', selector2: '[data-testid="atStop"]', do: [{ click: '[data-testid="stop"]' }, { click: '[data-testid="bump"]' }, { wait: 200 }] },
+              { kind: "text", selector: '[data-testid="rateNow"]', value: "0.0450" },
+              { kind: "textMatch", selector: '[data-testid="last"]', pattern: "^rate 0\\.0425$" }
+            ]
+          }
+        ]
+      }
+    ],
+    quiz: [
+      {
+        id: "q1",
+        type: "mc",
+        skill: "Alpine.reactive",
+        q: "What does `Alpine.reactive({ rate: 0.03 })` give you back?",
+        options: [
+          "The same object, wrapped in a proxy that records reads and writes",
+          "A deep copy \u2014 the original stays plain and unaffected",
+          "A read-only frozen snapshot",
+          "A new object with getters and setters generated per property, disconnected from the original"
+        ],
+        answer: 0,
+        why: "It is a thin wrapper: writes through the proxy land on the original object, which is why `Alpine.raw(proxy) === obj` and why a plain variable you kept can be read by other, non-Alpine code.",
+        distractors: {
+          1: "A copy would break that identity \u2014 and with it every hand-off to code that already holds the object."
+        }
+      },
+      {
+        id: "q2",
+        type: "multi",
+        skill: "dependency tracking",
+        q: "Which reads become dependencies of a running `Alpine.effect` callback?",
+        options: [
+          "A reactive property read in the callback body",
+          "A reactive property read inside a helper the callback calls synchronously",
+          "A reactive property read inside a `setTimeout` the callback scheduled",
+          "A reactive property read in an event handler the callback registered"
+        ],
+        answers: [0, 1],
+        why: "Tracking runs between the start and the end of the callback: anything reached synchronously counts, anything that happens later belongs to no effect.",
+        distractors: {
+          2: 'Later reads are untracked \u2014 the classic reason an effect "never fires" when the only read sits in a timeout.'
+        }
+      },
+      {
+        id: "q3",
+        type: "mc",
+        skill: "dependency tracking",
+        q: "An effect never re-runs and its readout stays on the first value. The only read of the dependency happens inside a `setTimeout`. Why?",
+        options: [
+          "Nothing was read while the callback ran, so the effect registered no dependencies",
+          "Alpine throttles effects to one run per second",
+          "The reactive proxy was garbage collected",
+          "`setTimeout` callbacks are not allowed to read reactive data"
+        ],
+        answer: 0,
+        why: "Dependencies are collected during the run. Snapshot the value synchronously (`const t = state.t`) and use the snapshot inside the timeout \u2014 then the read is tracked and the later callback still has the right value.",
+        distractors: {
+          1: "There is no default throttling; a scheduler can be passed to `Alpine.effect(cb, { scheduler })` when you want one."
+        }
+      },
+      {
+        id: "q4",
+        type: "mc",
+        skill: "Alpine.raw",
+        q: "You hand a reactive store to a charting library and do not want the library's reads to count as dependencies. What do you pass?",
+        options: [
+          "`Alpine.raw(store)` \u2014 the underlying object, reads through which are not tracked",
+          "`JSON.parse(JSON.stringify(store))` \u2014 a deep copy",
+          "`store` anyway: libraries cannot read proxies",
+          "`Object.assign({}, store)` \u2014 a shallow copy"
+        ],
+        answer: 0,
+        why: "`raw()` returns the original object behind the proxy: same data, no tracking, and the identity test `Alpine.raw(store) === plain` passes.",
+        distractors: {
+          1: "A deep copy costs you the identity and any live binding the library might have wanted."
+        }
+      },
+      {
+        id: "q5",
+        type: "mc",
+        skill: "Alpine.release",
+        q: "How do you stop an effect created with `Alpine.effect(callback)`?",
+        options: [
+          "Keep the runner it returns and call `Alpine.release(runner)`",
+          "Call `Alpine.release(proxy)` on the reactive object the effect reads",
+          "Set `runner.stopped = true`",
+          "It cannot be stopped \u2014 only page teardown ends an effect"
+        ],
+        answer: 0,
+        why: "`Alpine.effect` returns the effect's runner function; `Alpine.release(runner)` stops it. Passing anything else (a proxy, for example) throws, because there is no effect on it to stop.",
+        distractors: {
+          1: "Releasing the proxy is not a thing in this API \u2014 the error mentions `.stop`, which is your clue."
+        }
+      },
+      {
+        id: "q6",
+        type: "multi",
+        skill: "Alpine.reactive",
+        q: "Which statements are true?",
+        options: [
+          "`x-data` properties are reactive because Alpine wraps a component's data in `Alpine.reactive`",
+          "An effect that reads a property it also writes will keep re-running itself",
+          "`Alpine.raw(obj)` returns a copy of the object",
+          "Reading through `Alpine.raw(obj)` inside an effect does not register a dependency"
+        ],
+        answers: [0, 1, 3],
+        why: "One engine, one rule: reads track, writes trigger. Keeping a buffer outside the reactive graph (a raw array, a plain variable) is how you record change without feeding it back in.",
+        distractors: { 2: "`raw()` gives you the object itself, not a copy \u2014 which is exactly why the identity check passes." }
+      }
+    ]
   };
 
   // src/content/index.js
-  var raw2 = [foundations_default, state_default, text_html_bind_default, show_if_default, loops_default, events_default, forms_default, effects_default, handles_default, store_default, components_default, plugins_persist_default, stub_default, stub_default2, stub_default3, stub_default4, stub_default5, stub_default6];
+  var raw2 = [foundations_default, state_default, text_html_bind_default, show_if_default, loops_default, events_default, forms_default, effects_default, handles_default, store_default, components_default, plugins_persist_default, plugins_layout_default, plugins_focus_anchor_default, transitions_default, async_morph_default, extending_default, reactivity_default];
   var modules = raw2.slice().sort((a, b) => a.num - b.num).map((m, i) => {
     const units = (m.units || []).map((u, j) => ({
       kind: "step",
@@ -17765,6 +21296,7 @@ ${code}
     /* ------------------------------------------------------------- templating */
     { g: "Directive", n: "x-text", s: 'x-text="premium.toFixed(2)"', w: "Sets textContent \u2014 safe with user data, no HTML parsing.", u: "https://alpinejs.dev/directives/text", m: 3 },
     { g: "Directive", n: "x-html", s: 'x-html="row.comment"', w: "Sets innerHTML \u2014 only with trusted content: it parses markup.", u: "https://alpinejs.dev/directives/html", m: 3 },
+    { g: "Directive", n: "x-bind", s: '<div x-bind:class="\u2026"> / :class="\u2026"', w: "The generic binder: class, style, disabled, aria-*, data-* and plain attributes; the : shorthand is the same directive.", u: "https://alpinejs.dev/directives/bind", m: 3 },
     { g: "Directive", n: "x-bind:attribute", s: 'x-bind:href="url"  \xB7  :href="url"', w: "Binds any attribute; the short form is the colon.", u: "https://alpinejs.dev/directives/bind", m: 3 },
     { g: "Directive", n: "x-bind:class (object)", s: `:class="{ 'is-up': trend > 0 }"`, w: "Object syntax toggles classes; false removes the class entirely.", u: "https://alpinejs.dev/directives/bind", m: 3 },
     { g: "Directive", n: "x-bind:class (array)", s: `:class="[base, active && 'on']"`, w: "Combine static and conditional classes without string surgery.", u: "https://alpinejs.dev/directives/bind", m: 3 },
@@ -17773,9 +21305,11 @@ ${code}
     { g: "Directive", n: "x-bind on aria/data", s: ':aria-invalid="!valid" :data-state="state"', w: "Accessible and test-friendly bindings are ordinary attributes.", u: "https://alpinejs.dev/directives/bind", m: 3 },
     { g: "Directive", n: "x-bind shorthand + object spread", s: ':class="{ ...cls }"  \xB7  x-bind="allAttrs"', w: "x-bind with no argument spreads a whole object of attributes.", u: "https://alpinejs.dev/directives/bind", m: 3 },
     { g: "Directive", n: "x-cloak", s: "[x-cloak] { display: none !important }", w: "Hides un-initialised markup so users never see a flash of raw bindings.", u: "https://alpinejs.dev/directives/cloak", m: 3 },
-    { g: "Directive", n: "x-ignore + x-ignore.self", s: "x-ignore on a subtree", w: "Skip Alpine in a subtree (heavy third-party widget). .self ignores just that element.", u: "https://alpinejs.dev/directives/ignore", m: 3 },
+    { g: "Directive", n: "x-ignore", s: "x-ignore on a subtree", w: "Skip Alpine in a subtree (heavy third-party widget). .self ignores just that element.", u: "https://alpinejs.dev/directives/ignore", m: 3 },
     /* ------------------------------------------------------------------ toggling */
     { g: "Directive", n: "x-show", s: 'x-show="open"', w: "Toggles display:none \u2014 the element stays in the DOM (state, focus, height).", u: "https://alpinejs.dev/directives/show", m: 4 },
+    { g: "Directive", n: "x-transition", s: 'x-transition.opacity.duration.600ms / :enter="{ \u2026 }"', w: "The transition helper and the six phase classes: x-transition:enter, :enter-start, :enter-end, :leave, :leave-start, :leave-end.", u: "https://alpinejs.dev/directives/transition", m: 15 },
+    { g: "Plugin", n: "x-collapse", s: "x-collapse.duration.600ms / .min.100px", w: "Animates the height of an element that already has x-show; .min sets a displayed floor instead of the collapsed 0px state.", u: "https://alpinejs.dev/plugins/collapse", m: 15 },
     { g: "Directive", n: "x-show + transition", s: 'x-show="open" x-transition', w: "The classic dropdown/modal pairing.", u: "https://alpinejs.dev/directives/show", m: 15 },
     { g: "Directive", n: "x-if", s: '<template x-if="rows.length">', w: "Adds/removes DOM: must live on a <template>, and has no else branch.", u: "https://alpinejs.dev/directives/if", m: 4 },
     { g: "Directive", n: "When to use which", s: "x-show vs x-if", w: "Cheap toggling, keep state \u2192 x-show. Costly subtree, must not exist \u2192 x-if.", u: "https://alpinejs.dev/directives/if", m: 4 },
@@ -17788,6 +21322,7 @@ ${code}
     { g: "Directive", n: "x-for nesting", s: "nested templates", w: "Each loop gets the outer scope; avoid re-keying mistakes.", u: "https://alpinejs.dev/directives/for", m: 5 },
     { g: "Directive", n: "x-teleport", s: '<template x-teleport="body">', w: "Moves a subtree elsewhere in the DOM (modals, toasts) while keeping scope.", u: "https://alpinejs.dev/directives/teleport", m: 5 },
     /* -------------------------------------------------------------------- events */
+    { g: "Directive", n: "x-on", s: '<button @click="open = true">', w: "Attach listeners from markup; @ is the shorthand, and modifiers (prevent, outside, window, debounce\u2026) hang off it.", u: "https://alpinejs.dev/directives/on", m: 6 },
     { g: "Directive", n: "x-on / @", s: '@click="open = ! open"', w: "Listens to any DOM event; the shorthand is @.", u: "https://alpinejs.dev/directives/on", m: 6 },
     { g: "Modifier", n: ".prevent / .stop", s: '@submit.prevent="save()"', w: "Calls preventDefault() / stopPropagation() for you.", u: "https://alpinejs.dev/directives/on", m: 6 },
     { g: "Modifier", n: ".outside", s: '@click.outside="open = false"', w: "Anywhere in the document except inside this element.", u: "https://alpinejs.dev/directives/on", m: 6 },
@@ -17806,10 +21341,10 @@ ${code}
     { g: "Directive", n: "x-model.fill", s: 'x-model.fill="label"', w: "Placeholder text follows the model while typing.", u: "https://alpinejs.dev/directives/model", m: 7 },
     { g: "Directive", n: "Checkbox arrays", s: '<input type="checkbox" value="x" x-model="riderList">', w: "Several checkboxes bound to one array collect their values.", u: "https://alpinejs.dev/directives/model", m: 7 },
     { g: "Directive", n: "x-modelable", s: 'x-modelable="value" x-data="{ value: 0 }"', w: "Makes a component work with x-model from the outside.", u: "https://alpinejs.dev/directives/modelable", m: 7 },
-    { g: "Directive", n: "x-mask (plugin)", s: 'x-mask="9999-99-99"', w: "Input formatting with dynamic and function masks.", u: "https://alpinejs.dev/plugins/mask", m: 7 },
+    { g: "Directive", n: "x-mask", s: 'x-mask="9999-99-99"', w: "Input formatting with dynamic and function masks.", u: "https://alpinejs.dev/plugins/mask", m: 7 },
     /* ------------------------------------------------------------- side effects */
     { g: "Directive", n: "x-effect", s: 'x-effect="document.title = title"', w: "Re-runs whenever anything it reads changes \u2014 a reactive side effect.", u: "https://alpinejs.dev/directives/effect", m: 8 },
-    { g: "Directive", n: "x-ref + $refs", s: 'x-ref="input" \u2026 $refs.input.focus()', w: "Direct handle on an element inside the component.", u: "https://alpinejs.dev/directives/ref", m: 9 },
+    { g: "Directive", n: "x-ref", s: 'x-ref="input" \u2026 $refs.input.focus()', w: "Direct handle on an element inside the component.", u: "https://alpinejs.dev/directives/ref", m: 9 },
     { g: "Directive", n: "x-id", s: `x-id="['field']" :id="$id('field')"`, w: "Generates unique ids \u2014 the accessible label/aria pattern.", u: "https://alpinejs.dev/directives/id", m: 9 },
     /* -------------------------------------------------------------------- magics */
     { g: "Magic", n: "$el", s: "$el.classList", w: "The element the expression runs on.", u: "https://alpinejs.dev/magics/el", m: 9 },
@@ -17821,21 +21356,26 @@ ${code}
     { g: "Magic", n: "$watch", s: "this.$watch('rate', (v, old) => \u2026)", w: "Observe a property and react to changes (from inside the component).", u: "https://alpinejs.dev/magics/watch", m: 8 },
     { g: "Magic", n: "$dispatch", s: "$dispatch('refresh', { force: true })", w: "Fires a CustomEvent from the element (bubbles by default).", u: "https://alpinejs.dev/magics/dispatch", m: 6 },
     { g: "Magic", n: "$nextTick", s: "$nextTick(() => $refs.input.focus())", w: "Wait for Alpine to finish updating the DOM.", u: "https://alpinejs.dev/magics/nextTick", m: 8 },
-    { g: "Magic", n: "$persist (plugin)", s: `x-data="{ n: $persist(0).as('n') }"`, w: "localStorage-backed values; keys get the _x_ prefix by default.", u: "https://alpinejs.dev/plugins/persist", m: 12 },
-    { g: "Magic", n: "$anchor (plugin)", s: "$anchor.x, $anchor.y, $anchor.placement", w: "Positioning data from the Anchor plugin for manual styling.", u: "https://alpinejs.dev/plugins/anchor", m: 14 },
-    { g: "Magic", n: "$width / $height (plugin)", s: 'x-resize="$width"', w: "Element (or viewport) size inside x-resize.", u: "https://alpinejs.dev/plugins/resize", m: 13 },
+    { g: "Magic", n: "$persist", s: `x-data="{ n: $persist(0).as('n') }"`, w: "localStorage-backed values; keys get the _x_ prefix by default.", u: "https://alpinejs.dev/plugins/persist", m: 12 },
+    { g: "Plugin", n: "x-trap", s: 'x-trap.noscroll="open" / .inert / .noautofocus / .noreturn', w: "Focus trapping for dialogs: Tab cycling, outside-click protection, scroll lock, inert siblings and focus return.", u: "https://alpinejs.dev/plugins/focus", m: 14 },
+    { g: "Magic", n: "$anchor", s: "$anchor.x, $anchor.y, $anchor.placement", w: "Positioning data from the Anchor plugin for manual styling.", u: "https://alpinejs.dev/plugins/anchor", m: 14 },
+    { g: "Magic", n: "$width/$height (plugin)", s: 'x-resize="$width"', w: "Element (or viewport) size inside x-resize.", u: "https://alpinejs.dev/plugins/resize", m: 13 },
     { g: "Magic", n: "$item / $position (plugin)", s: `x-sort="$item + '@' + $position"`, w: "Drag metadata inside an x-sort handler.", u: "https://alpinejs.dev/plugins/sort", m: 13 },
     { g: "Magic", n: "$event", s: '@click="pick($event)"', w: "The DOM event object of the current handler.", u: "https://alpinejs.dev/directives/on", m: 6 },
     { g: "Magic", n: "$now / custom magics", s: "Alpine.magic('now', () => new Date())", w: "You can add your own $magics \u2014 see Extending.", u: "https://alpinejs.dev/advanced/extending", m: 17 },
     /* ------------------------------------------------------------------- plugins */
     { g: "Plugin", n: "persist", s: "@alpinejs/persist", w: "Survive reloads: drafts, filters, sidebar state.", u: "https://alpinejs.dev/plugins/persist", m: 12 },
+    { g: "Plugin", n: "x-intersect", s: 'x-intersect.once.margin.200px="load()"', w: "Observer-driven visibility: .once, .margin.<n>px, .threshold.<n>, .half / .full, and :leave for the way out.", u: "https://alpinejs.dev/plugins/intersect", m: 12 },
     { g: "Plugin", n: "intersect", s: 'x-intersect:enter.once="loadMore()"', w: "Run code when an element scrolls into view (paging, lazy charts, impression tracking).", u: "https://alpinejs.dev/plugins/intersect", m: 12 },
     { g: "Plugin", n: "mask", s: 'x-mask="999-99-9999"', w: "Input masks for policy numbers, dates, money; .dynamic and function masks.", u: "https://alpinejs.dev/plugins/mask", m: 7 },
     { g: "Plugin", n: "collapse", s: 'x-collapse x-show="open"', w: "Animated height for accordions, with .duration and .min modifiers.", u: "https://alpinejs.dev/plugins/collapse", m: 15 },
     { g: "Plugin", n: "focus", s: 'x-trap="open"', w: "Focus trapping for modals, plus x-trap.inert and $focus magic helpers.", u: "https://alpinejs.dev/plugins/focus", m: 14 },
     { g: "Plugin", n: "morph", s: "Alpine.morph(el, html)", w: "Efficient DOM diffing when you re-render HTML from the server.", u: "https://alpinejs.dev/plugins/morph", m: 16 },
+    { g: "Plugin", n: "x-anchor", s: 'x-anchor.bottom-start.offset.6="$refs.trigger"', w: "Positions an element relative to another and re-positions it; magics $anchor.x / $anchor.y report the result.", u: "https://alpinejs.dev/plugins/anchor", m: 14 },
     { g: "Plugin", n: "anchor", s: 'x-anchor.bottom-start="$refs.button"', w: "Floating-UI positioning for dropdowns, tooltips and popovers.", u: "https://alpinejs.dev/plugins/anchor", m: 14 },
+    { g: "Plugin", n: "x-resize", s: 'x-resize.document="w = $width"', w: "Runs an expression whenever the element (or the document, with .document) changes size.", u: "https://alpinejs.dev/plugins/resize", m: 13 },
     { g: "Plugin", n: "resize", s: 'x-resize="$width"', w: "React to element or viewport resizing (responsive charts, containers).", u: "https://alpinejs.dev/plugins/resize", m: 13 },
+    { g: "Plugin", n: "x-sort", s: 'x-sort="handleDrop($item, $position)"', w: "Drag-and-drop sorting; the handler receives $item and $position, and :key is how Alpine knows the order.", u: "https://alpinejs.dev/plugins/sort", m: 13 },
     { g: "Plugin", n: "sort", s: "x-sort / x-sort:item / x-sort:handle", w: "Drag-to-reorder lists and Kanban columns (SortableJS under the hood).", u: "https://alpinejs.dev/plugins/sort", m: 13 },
     /* ------------------------------------------------------------------- globals */
     { g: "Global", n: "Alpine.data()", s: "Alpine.data('dropdown', () => ({ open: false }))", w: 'Reusable named components: x-data="dropdown".', u: "https://alpinejs.dev/globals/alpine-data", m: 11 },
@@ -17847,7 +21387,7 @@ ${code}
     { g: "Global", n: "Alpine.reactive()", s: "Alpine.reactive({ count: 1 })", w: "Wrap a plain object in a reactive proxy (Vue reactivity under the hood).", u: "https://alpinejs.dev/advanced/reactivity", m: 18 },
     { g: "Global", n: "Alpine.effect()", s: "Alpine.effect(() => console.log(data.count))", w: "Re-run a callback whenever anything it reads changes.", u: "https://alpinejs.dev/advanced/reactivity", m: 18 },
     { g: "Global", n: "Alpine.raw()", s: "Alpine.raw(reactiveObj)", w: "Escape hatch to the unwrapped object (no proxy overhead, no tracking).", u: "https://alpinejs.dev/advanced/extending", m: 18 },
-    { g: "Global", n: "Alpine.release()", s: "Alpine.release(proxy)", w: "Unwraps nested reactive data back into plain objects.", u: "https://alpinejs.dev/advanced/extending", m: 18 },
+    { g: "Global", n: "Alpine.release()", s: "Alpine.release(runner) \u2014 the effect runner Alpine.effect() returned", w: "Stops that effect for good (Alpine also releases a discarded subtree's scopes internally).", u: "https://alpinejs.dev/advanced/reactivity", m: 18 },
     { g: "Global", n: "Alpine.morph()", s: "Alpine.morph(el, newHtml)", w: "From the morph plugin; also Alpine.morph(el, html, { key: \u2026 }).", u: "https://alpinejs.dev/plugins/morph", m: 16 },
     { g: "Global", n: "Alpine.deferInit()", s: "Alpine.deferInit(el, promise)", w: "Suspends a subtree until a promise settles \u2014 for async component providers.", u: "https://alpinejs.dev/advanced/extending", m: 17 },
     { g: "Global", n: "Alpine.interceptInit()", s: "Alpine.interceptInit(el => { \u2026 })", w: "Low-level hook that runs for every element just before it initialises.", u: "https://alpinejs.dev/advanced/extending", m: 17 },
@@ -18294,7 +21834,7 @@ ${code}
   }
 
   // src/views/workshop.js
-  var cl8 = chainLadder();
+  var cl10 = chainLadder();
   var presets = [
     {
       id: "table",
@@ -18318,7 +21858,7 @@ ${code}
     {
       id: "triangle",
       name: "x-if + x-model.number: chain-ladder factors",
-      code: `<div x-data="{ factors: ${JSON.stringify(cl8.factors.map((f) => Number(f.toFixed(4))))} , latest: ${JSON.stringify(cl8.latest)} }">
+      code: `<div x-data="{ factors: ${JSON.stringify(cl10.factors.map((f) => Number(f.toFixed(4))))} , latest: ${JSON.stringify(cl10.latest)} }">
   <p>Ultimate for the newest accident year:</p>
   <input type="number" step="0.0001" x-model.number="factors[1]" style="width:120px">
   <p>factors: <span x-text="factors.map(f => f.toFixed(4)).join(' \xB7 ')"></span></p>
