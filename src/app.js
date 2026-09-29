@@ -137,7 +137,7 @@ Alpine.data('shell', () => ({
       const m = byId(r.id)
       if (m) {
         const i = modules.findIndex(x => x.id === m.id)
-        html = renderModule(m, modules[i + 1] || null)
+        html = renderModule(m, modules[i + 1] || null, modules[i - 1] || null)
       } else {
         html = `<div class="card"><h2>No such module</h2><p>That link does not match a module. <a href="#/">Back to the dashboard</a>.</p></div>`
       }

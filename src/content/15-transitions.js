@@ -121,7 +121,7 @@ export default {
         }
       ]
     },
-    {
+{
       id: 's2',
       title: 'Class-based transitions',
       objective: 'Hand the motion to your own CSS with the six phase classes.',
@@ -199,7 +199,7 @@ export default {
         }
       ]
     },
-    {
+{
       id: 's3',
       title: 'x-show keeps the node, x-if destroys it',
       objective: 'Pick the directive that matches the job — only one of them can transition.',
@@ -302,159 +302,7 @@ That is the whole choice: \`x-show\` + \`x-transition\` when the element should 
         }
       ]
     },
-    {
-      id: 'e1',
-      kind: 'exercise',
-      title: 'Exercise — a movement banner that arrives and leaves',
-      objective: 'A full class-based cycle: six phases, correct staging, nothing left behind.',
-      scenario: `The quarter's reserve movement notice must slide up into place over 700ms when a reviewer reveals it, and slide away over the same 700ms when dismissed — and while it slides away it must still occupy its space, so the table below does not jump. Provided CSS: \`.mv-enter\`, \`.mv-enter-start\`, \`.mv-enter-end\`, \`.mv-leave\`, \`.mv-leave-start\`, \`.mv-leave-end\`, with the 700ms transitions already attached.`,
-      brief: `Elements: \`data-testid="reveal"\` shows the notice, \`data-testid="dismiss"\` takes it away, and \`data-testid="banner"\` carries the six phase directives with the \`mv-*\` classes. The banner starts hidden.`,
-      starter: `<div x-data="{ open: false }">
-  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
-  <button data-testid="dismiss" @click="open = false">dismiss</button>
-  <div data-testid="banner" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
-    IBNR up 12.4 % on 2025 frequency
-  </div>
-</div>`,
-      solution: `<style>
-  .mv-enter  { transition: opacity 700ms ease, transform 700ms ease; }
-  .mv-enter-start { opacity: 0; transform: translateY(12px); }
-  .mv-enter-end   { opacity: 1; transform: none; }
-  .mv-leave  { transition: opacity 700ms ease; }
-  .mv-leave-start { opacity: 1; }
-  .mv-leave-end   { opacity: 0; }
-</style>
-<div x-data="{ open: false }">
-  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
-  <button data-testid="dismiss" @click="open = false">dismiss</button>
-  <div data-testid="banner" x-show="open"
-       x-transition:enter="mv-enter" x-transition:enter-start="mv-enter-start" x-transition:enter-end="mv-enter-end"
-       x-transition:leave="mv-leave" x-transition:leave-start="mv-leave-start" x-transition:leave-end="mv-leave-end"
-       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
-    IBNR up 12.4 % on 2025 frequency
-  </div>
-</div>`,
-      hints: [
-        'Same six directives as the step; the class names here are `mv-*`, and the stylesheet is already given.',
-        `The banner must be \`hidden\` at 80ms into the leave but only \`display:none\` after the 700ms finishes.`,
-        'Dismissing then re-revealing must work repeatedly — Alpine cleans the classes up for you.'
-      ],
-      tasks: [
-        {
-          id: 't1',
-          skill: 'x-transition:enter',
-          text: 'The banner must start hidden, then enter over 700ms: 150ms in it is wearing `mv-enter` and `mv-enter-end`, has shed `mv-enter-start`, and its opacity is climbing.',
-          checks: [
-            { kind: 'hidden', selector: '[data-testid="banner"]' },
-            { kind: 'code', pattern: 'x-transition:enter-start="mv-enter-start"' },
-            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-enter', do: [{ click: '[data-testid="reveal"]' }, { wait: 150 }] },
-            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-enter-end' },
-            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter-start' },
-            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.02, hi: 0.95 }
-          ]
-        },
-        {
-          id: 't2',
-          skill: 'x-transition:enter',
-          text: 'By the time it has arrived the phase classes are gone and it is fully opaque — the notice is not left mid-transition.',
-          checks: [
-            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter', do: [{ wait: 700 }] },
-            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter-end' },
-            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.99, hi: 1.01 },
-            { kind: 'shown', selector: '[data-testid="banner"]' }
-          ]
-        },
-        {
-          id: 't3',
-          skill: 'x-transition:leave',
-          text: 'Dismissing must stage the leave: at 150ms the banner wears `mv-leave`, is still occupying space, and its opacity is between the ends; after 700ms it is hidden with no classes left.',
-          checks: [
-            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-leave', do: [{ click: '[data-testid="dismiss"]' }, { wait: 150 }] },
-            { kind: 'shown', selector: '[data-testid="banner"]' },
-            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.02, hi: 0.95 },
-            { kind: 'hidden', selector: '[data-testid="banner"]', do: [{ wait: 700 }] },
-            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-leave' },
-            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-leave-end' }
-          ]
-        }
-      ]
-    },
-    {
-      id: 'e2',
-      kind: 'exercise',
-      title: 'Exercise — a drawer with asymmetric timings',
-      objective: 'Slow to open, quick to close, plus an x-if notice that fades in.',
-      scenario: `Accident-year drawers in the IBNR workbench open over 600ms, because opening is when the reviewer wants the movement to be legible. Closing happens when they have already read the drawer, so it takes 200ms. When every year has been cleared, the \`x-if\` notice "nothing outstanding" fades in over 300ms. Rows: ${ROWS.map(r => `${r.year} (${r.ibnr.toFixed(1)})`).join(' · ')}.`,
-      brief: `Elements: one \`data-testid="row"\` per year with \`data-year\`, a \`data-testid="drawer"\` inside each row (toggled by a \`data-testid="rowToggle"\` button, one open at a time), \`data-testid="clear"\` empties the list, and \`data-testid="nothing"\` hidden by \`x-show="rows.length === 0"\` with a 300ms transition (a leaving transition rules out \`x-if\`). The drawer must use \`x-transition:enter.duration.600ms\` and \`x-transition:leave.duration.200ms\`.`,
-      starter: `<div x-data="{ rows: ${sq(ROWS)}, openYear: null }">
-  <button data-testid="clear" @click="rows = []">mark everything reviewed</button>
-</div>`,
-      solution: `<div x-data="{ rows: ${sq(ROWS)}, openYear: null }">
-  <button data-testid="clear" @click="rows = []; openYear = null">mark everything reviewed</button>
-
-  <ul style="list-style:none;padding:0">
-    <template x-for="r in rows" :key="r.year">
-      <li data-testid="row" :data-year="r.year" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
-        <button data-testid="rowToggle" @click="openYear = openYear === r.year ? null : r.year">
-          <span x-text="r.year"></span> — IBNR <span x-text="r.ibnr.toFixed(1)"></span>
-        </button>
-        <div data-testid="drawer" x-show="openYear === r.year"
-             x-transition:enter.duration.600ms x-transition:leave.duration.200ms
-             style="margin-top:6px">
-          development factor applied <span x-text="(r.ibnr / ${ROWS[0].ibnr}).toFixed(2)"></span>× the 2022 base; review the tail before sign-off.
-        </div>
-      </li>
-    </template>
-  </ul>
-
-  <p data-testid="nothing" x-show="rows.length === 0" x-transition.duration.300ms>
-    Nothing outstanding — every accident year is reviewed.
-  </p>
-</div>`,
-      hints: [
-        'Opening slowly and closing quickly means two separate duration directives on the same element.',
-        'The "nothing outstanding" message lives inside `<template x-if>`; the transition goes on the `<p>`.',
-        'The 200ms leave still keeps the drawer in the layout for a moment — that gap is what makes the asymmetrical timings visible.'
-      ],
-      tasks: [
-        {
-          id: 't1',
-          skill: '.duration',
-          text: `Opening ${ROWS[1].year} must be slow: 300ms in, the drawer is visible with its opacity still climbing between the ends, and it reads complete by 900ms.`,
-          checks: [
-            { kind: 'code', pattern: 'x-transition:enter\\.duration\\.600ms' },
-            { kind: 'shown', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[1].year + '"] [data-testid="rowToggle"]' }, { wait: 300 }] },
-            { kind: 'styleBetween', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', prop: 'opacity', lo: 0.02, hi: 0.97 },
-            { kind: 'styleBetween', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', prop: 'opacity', lo: 0.99, hi: 1.01, do: [{ wait: 600 }] }
-          ]
-        },
-        {
-          id: 't2',
-          skill: '.duration',
-          text: `Closing must be quick but not instant: 120ms after the toggle the drawer is still in the layout, and by 400ms it is gone. (A 600ms leave would still be on screen at 400ms.)`,
-          checks: [
-            { kind: 'code', pattern: 'x-transition:leave\\.duration\\.200ms' },
-            { kind: 'shown', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[1].year + '"] [data-testid="rowToggle"]' }, { wait: 120 }] },
-            { kind: 'hidden', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ wait: 300 }] },
-            { kind: 'shown', selector: '[data-year="' + ROWS[0].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[0].year + '"] [data-testid="rowToggle"]' }, { wait: 700 }] }
-          ]
-        },
-        {
-          id: 't3',
-          skill: 'x-if',
-          text: 'Reviewing everything must empty the list and fade the notice in over 300ms — mid-flight its opacity sits between the ends, and it settles opaque without ever leaving the document.',
-          checks: [
-            { kind: 'hidden', selector: '[data-testid="nothing"]' },
-            { kind: 'shown', selector: '[data-testid="nothing"]', do: [{ click: '[data-testid="clear"]' }, { wait: 100 }] },
-            { kind: 'styleBetween', selector: '[data-testid="nothing"]', prop: 'opacity', lo: 0.02, hi: 0.97 },
-            { kind: 'count', selector: '[data-testid="row"]', value: 0 },
-            { kind: 'styleBetween', selector: '[data-testid="nothing"]', prop: 'opacity', lo: 0.99, hi: 1.01, do: [{ wait: 500 }] },
-            { kind: 'code', pattern: 'x-transition\\.duration\\.300ms' }
-          ]
-        }
-      ]
-    },
-    {
+{
       id: 's4',
       title: 'x-collapse: animating height',
       objective: 'Expand and collapse content along its height, with a floor when you want a teaser.',
@@ -531,6 +379,158 @@ That is the whole choice: \`x-show\` + \`x-transition\` when the element should 
             { kind: 'shown', selector: '[data-testid="note"]', do: [{ click: '[data-testid="toggle"]' }, { wait: 150 }] },
             { kind: 'styleBetween', selector: '[data-testid="note"]', prop: 'height', lo: 0.5, hi: 4000 },
             { kind: 'hidden', selector: '[data-testid="note"]', do: [{ wait: 700 }] }
+          ]
+        }
+      ]
+    },
+{
+      id: 'e1',
+      kind: 'exercise',
+      title: 'Exercise — a movement banner that arrives and leaves',
+      objective: 'A full class-based cycle: six phases, correct staging, nothing left behind.',
+      scenario: `The quarter's reserve movement notice must slide up into place over 700ms when a reviewer reveals it, and slide away over the same 700ms when dismissed — and while it slides away it must still occupy its space, so the table below does not jump. Provided CSS: \`.mv-enter\`, \`.mv-enter-start\`, \`.mv-enter-end\`, \`.mv-leave\`, \`.mv-leave-start\`, \`.mv-leave-end\`, with the 700ms transitions already attached.`,
+      brief: `Elements: \`data-testid="reveal"\` shows the notice, \`data-testid="dismiss"\` takes it away, and \`data-testid="banner"\` carries the six phase directives with the \`mv-*\` classes. The banner starts hidden.`,
+      starter: `<div x-data="{ open: false }">
+  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
+  <button data-testid="dismiss" @click="open = false">dismiss</button>
+  <div data-testid="banner" x-show="open" style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR up 12.4 % on 2025 frequency
+  </div>
+</div>`,
+      solution: `<style>
+  .mv-enter  { transition: opacity 700ms ease, transform 700ms ease; }
+  .mv-enter-start { opacity: 0; transform: translateY(12px); }
+  .mv-enter-end   { opacity: 1; transform: none; }
+  .mv-leave  { transition: opacity 700ms ease; }
+  .mv-leave-start { opacity: 1; }
+  .mv-leave-end   { opacity: 0; }
+</style>
+<div x-data="{ open: false }">
+  <button data-testid="reveal" @click="open = true">reveal the movement notice</button>
+  <button data-testid="dismiss" @click="open = false">dismiss</button>
+  <div data-testid="banner" x-show="open"
+       x-transition:enter="mv-enter" x-transition:enter-start="mv-enter-start" x-transition:enter-end="mv-enter-end"
+       x-transition:leave="mv-leave" x-transition:leave-start="mv-leave-start" x-transition:leave-end="mv-leave-end"
+       style="border:1px solid #253253;border-radius:8px;padding:10px;margin-top:8px">
+    IBNR up 12.4 % on 2025 frequency
+  </div>
+</div>`,
+      hints: [
+        'Same six directives as the step; the class names here are `mv-*`, and the stylesheet is already given.',
+        `The banner must be \`hidden\` at 80ms into the leave but only \`display:none\` after the 700ms finishes.`,
+        'Dismissing then re-revealing must work repeatedly — Alpine cleans the classes up for you.'
+      ],
+      tasks: [
+        {
+          id: 't1',
+          skill: 'x-transition:enter',
+          text: 'The banner must start hidden, then enter over 700ms: 150ms in it is wearing `mv-enter` and `mv-enter-end`, has shed `mv-enter-start`, and its opacity is climbing.',
+          checks: [
+            { kind: 'hidden', selector: '[data-testid="banner"]' },
+            { kind: 'code', pattern: 'x-transition:enter-start="mv-enter-start"' },
+            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-enter', do: [{ click: '[data-testid="reveal"]' }, { wait: 150 }] },
+            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-enter-end' },
+            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter-start' },
+            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.02, hi: 0.95 }
+          ]
+        },
+        {
+          id: 't2',
+          skill: 'x-transition:enter',
+          text: 'By the time it has arrived the phase classes are gone and it is fully opaque — the notice is not left mid-transition.',
+          checks: [
+            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter', do: [{ wait: 700 }] },
+            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-enter-end' },
+            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.99, hi: 1.01 },
+            { kind: 'shown', selector: '[data-testid="banner"]' }
+          ]
+        },
+        {
+          id: 't3',
+          skill: 'x-transition:leave',
+          text: 'Dismissing must stage the leave: at 150ms the banner wears `mv-leave`, is still occupying space, and its opacity is between the ends; after 700ms it is hidden with no classes left.',
+          checks: [
+            { kind: 'klass', selector: '[data-testid="banner"]', value: 'mv-leave', do: [{ click: '[data-testid="dismiss"]' }, { wait: 150 }] },
+            { kind: 'shown', selector: '[data-testid="banner"]' },
+            { kind: 'styleBetween', selector: '[data-testid="banner"]', prop: 'opacity', lo: 0.02, hi: 0.95 },
+            { kind: 'hidden', selector: '[data-testid="banner"]', do: [{ wait: 700 }] },
+            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-leave' },
+            { kind: 'noKlass', selector: '[data-testid="banner"]', value: 'mv-leave-end' }
+          ]
+        }
+      ]
+    },
+{
+      id: 'e2',
+      kind: 'exercise',
+      title: 'Exercise — a drawer with asymmetric timings',
+      objective: 'Slow to open, quick to close, plus an x-if notice that fades in.',
+      scenario: `Accident-year drawers in the IBNR workbench open over 600ms, because opening is when the reviewer wants the movement to be legible. Closing happens when they have already read the drawer, so it takes 200ms. When every year has been cleared, the \`x-if\` notice "nothing outstanding" fades in over 300ms. Rows: ${ROWS.map(r => `${r.year} (${r.ibnr.toFixed(1)})`).join(' · ')}.`,
+      brief: `Elements: one \`data-testid="row"\` per year with \`data-year\`, a \`data-testid="drawer"\` inside each row (toggled by a \`data-testid="rowToggle"\` button, one open at a time), \`data-testid="clear"\` empties the list, and \`data-testid="nothing"\` hidden by \`x-show="rows.length === 0"\` with a 300ms transition (a leaving transition rules out \`x-if\`). The drawer must use \`x-transition:enter.duration.600ms\` and \`x-transition:leave.duration.200ms\`.`,
+      starter: `<div x-data="{ rows: ${sq(ROWS)}, openYear: null }">
+  <button data-testid="clear" @click="rows = []">mark everything reviewed</button>
+</div>`,
+      solution: `<div x-data="{ rows: ${sq(ROWS)}, openYear: null }">
+  <button data-testid="clear" @click="rows = []; openYear = null">mark everything reviewed</button>
+
+  <ul style="list-style:none;padding:0">
+    <template x-for="r in rows" :key="r.year">
+      <li data-testid="row" :data-year="r.year" style="border:1px solid #253253;border-radius:8px;padding:8px;margin:6px 0">
+        <button data-testid="rowToggle" @click="openYear = openYear === r.year ? null : r.year">
+          <span x-text="r.year"></span> — IBNR <span x-text="r.ibnr.toFixed(1)"></span>
+        </button>
+        <div data-testid="drawer" x-show="openYear === r.year"
+             x-transition:enter.duration.600ms x-transition:leave.duration.200ms
+             style="margin-top:6px">
+          development factor applied <span x-text="(r.ibnr / ${ROWS[0].ibnr}).toFixed(2)"></span>× the 2022 base; review the tail before sign-off.
+        </div>
+      </li>
+    </template>
+  </ul>
+
+  <p data-testid="nothing" x-show="rows.length === 0" x-transition.duration.300ms>
+    Nothing outstanding — every accident year is reviewed.
+  </p>
+</div>`,
+      hints: [
+        'Opening slowly and closing quickly means two separate duration directives on the same element.',
+        'The "nothing outstanding" message lives inside `<template x-if>`; the transition goes on the `<p>`.',
+        'The 200ms leave still keeps the drawer in the layout for a moment — that gap is what makes the asymmetrical timings visible.'
+      ],
+      tasks: [
+        {
+          id: 't1',
+          skill: '.duration',
+          text: `Opening ${ROWS[1].year} must be slow: 300ms in, the drawer is visible with its opacity still climbing between the ends, and it reads complete by 900ms.`,
+          checks: [
+            { kind: 'code', pattern: 'x-transition:enter\\.duration\\.600ms' },
+            { kind: 'shown', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[1].year + '"] [data-testid="rowToggle"]' }, { wait: 300 }] },
+            { kind: 'styleBetween', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', prop: 'opacity', lo: 0.02, hi: 0.97 },
+            { kind: 'styleBetween', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', prop: 'opacity', lo: 0.99, hi: 1.01, do: [{ wait: 600 }] }
+          ]
+        },
+        {
+          id: 't2',
+          skill: '.duration',
+          text: `Closing must be quick but not instant: 120ms after the toggle the drawer is still in the layout, and by 400ms it is gone. (A 600ms leave would still be on screen at 400ms.)`,
+          checks: [
+            { kind: 'code', pattern: 'x-transition:leave\\.duration\\.200ms' },
+            { kind: 'shown', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[1].year + '"] [data-testid="rowToggle"]' }, { wait: 120 }] },
+            { kind: 'hidden', selector: '[data-year="' + ROWS[1].year + '"] [data-testid="drawer"]', do: [{ wait: 300 }] },
+            { kind: 'shown', selector: '[data-year="' + ROWS[0].year + '"] [data-testid="drawer"]', do: [{ click: '[data-year="' + ROWS[0].year + '"] [data-testid="rowToggle"]' }, { wait: 700 }] }
+          ]
+        },
+        {
+          id: 't3',
+          skill: 'x-if',
+          text: 'Reviewing everything must empty the list and fade the notice in over 300ms — mid-flight its opacity sits between the ends, and it settles opaque without ever leaving the document.',
+          checks: [
+            { kind: 'hidden', selector: '[data-testid="nothing"]' },
+            { kind: 'shown', selector: '[data-testid="nothing"]', do: [{ click: '[data-testid="clear"]' }, { wait: 100 }] },
+            { kind: 'styleBetween', selector: '[data-testid="nothing"]', prop: 'opacity', lo: 0.02, hi: 0.97 },
+            { kind: 'count', selector: '[data-testid="row"]', value: 0 },
+            { kind: 'styleBetween', selector: '[data-testid="nothing"]', prop: 'opacity', lo: 0.99, hi: 1.01, do: [{ wait: 500 }] },
+            { kind: 'code', pattern: 'x-transition\\.duration\\.300ms' }
           ]
         }
       ]

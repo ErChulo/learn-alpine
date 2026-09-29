@@ -8,7 +8,6 @@
  * ========================================================================== */
 
 import { Workshop, phases } from '../lib/runner.js'
-import { debounce } from '../lib/utils.js'
 
 export default function registerWorkbench(Alpine) {
   Alpine.data('workbench', () => ({
@@ -23,6 +22,10 @@ export default function registerWorkbench(Alpine) {
     tab: 'split',
     ws: null,
     dirty: false,
+    expanded: false,
+    live: true,
+    _auto: null,
+    _loadedCode: null,
 
     init() {
       this.cfg = JSON.parse(this.$el.dataset.cfg)
@@ -30,6 +33,7 @@ export default function registerWorkbench(Alpine) {
       this.code = saved ?? this.cfg.starter ?? ''
       this.dirty = !!saved && saved !== this.cfg.starter
       this.$el.__wb = this   // test hook used by tests/e2e.mjs
+      this._loadedCode = this.code
       this.ws = new Workshop({
         host: this.$refs.host,
         starter: this.code,
@@ -39,7 +43,17 @@ export default function registerWorkbench(Alpine) {
       this.ws.waitReady().then(r => {
         if (r && r.timeout) this.msg = 'The sandbox is slow to start — check for JavaScript errors in your code.'
       })
-      this.$watch('code', debounce(v => this.$store.course.engine.setDraft(this.cfg.unitKey, v), 500))
+      // persistence of the draft, and — just as important — a preview that
+      // actually follows what the learner types
+      this.$watch('code', v => {
+        this.$store.course.engine.setDraft(this.cfg.unitKey, v)
+        clearTimeout(this._auto)
+        if (!this.live) return
+        this._auto = setTimeout(() => {
+          if (this.running) return
+          this.applyPreview()
+        }, 500)
+      })
     },
 
     /** Every check, with a deterministic id, tagged with the task it belongs to. */
@@ -48,13 +62,20 @@ export default function registerWorkbench(Alpine) {
         (t.checks || []).map((c, i) => ({ ...c, taskId: t.id, id: `${t.id}-c${i + 1}`, phase: c.phase ?? t.phase ?? 1 })))
     },
 
+    get lineCount() { return (this.code.match(/\n/g) || []).length + 1 },
     get passCount() { return (this.cfg.tasks || []).filter(t => this.results[t.id]?.status === 'pass').length },
     get taskCount() { return (this.cfg.tasks || []).length },
+
+    /** Rebuild the preview and remember exactly which code it is running. */
+    applyPreview(code = this.code) {
+      this._loadedCode = code
+      return this.ws.reload(code)
+    },
 
     /** Load a snippet from the workshop preset picker. */
     loadPreset(code) {
       this.code = code
-      this.ws.reload(code)
+      this.applyPreview(code)
       this.msg = 'Preset loaded into the editor — edit it and watch the preview.'
       this.msgKind = ''
     },
@@ -67,10 +88,15 @@ export default function registerWorkbench(Alpine) {
         return
       }
       this.running = true
-      this.msg = 'Running your code…'
+      this.msg = 'Running your page in the sandbox…'
       this.msgKind = ''
       try {
         const [p1, p2] = phases(this.allChecks)
+        // Never test a stale page: if the editor moved ahead of the preview
+        // (live preview paused, or a keystroke inside the debounce window),
+        // rebuild it first. If it is already current, do not reload — reloading
+        // would restart effects and corrupt counters the learner is watching.
+        if (this._loadedCode !== this.code) await this.applyPreview()
         let out = p1.length ? await this.ws.run(p1, { source: this.code }) : []
         if (p2.length) {
           // Phase 2 runs in a *fresh* page so that $persist / localStorage
@@ -92,9 +118,9 @@ export default function registerWorkbench(Alpine) {
         this.$store.course.refresh()
 
         if (skips && !passes && !fails) this.msg = 'Not verifiable in this window (no storage access). Run the project locally for this check.'
-        else if (passes && !fails) this.msg = `All ${passes} task${passes > 1 ? 's' : ''} passed. ${this.encouragement()}`
-        else if (fails && passes) this.msg = `${passes} passed, ${fails} to go. Read the failing lines below.`
-        else this.msg = 'Not yet — each failing task tells you what the sandbox actually saw.'
+        else if (passes && !fails) this.msg = `All ${passes} check${passes > 1 ? 's' : ''} passed. ${this.encouragement()}`
+        else if (fails && passes) this.msg = `${passes} of ${passes + fails} passed. The ones that failed are marked ✗ on the left, each with what the sandbox actually saw.`
+        else this.msg = 'Nothing passed yet — start with the first failing check on the left; it says exactly what the sandbox looked for.'
         this.msgKind = fails ? 'err' : (passes ? 'ok' : '')
         const err = this.ws.errorSummary()
         if (err) this.msg += '  ⚠ ' + err
@@ -128,15 +154,24 @@ export default function registerWorkbench(Alpine) {
     },
 
     reloadSandbox() {
-      this.ws.reload(this.code)
+      this.applyPreview()
       this.msg = 'Sandbox reloaded with your current code.'
+      this.msgKind = ''
+    },
+
+    toggleLive() {
+      this.live = !this.live
+      if (this.live) this.applyPreview()
+      this.msg = this.live
+        ? 'Live preview is on: the right-hand page follows what you type.'
+        : 'Live preview paused — the page will not reset while you click around. Press "restart preview" when you want it rebuilt.'
       this.msgKind = ''
     },
 
     resetToStarter() {
       this.code = this.cfg.starter || ''
       this.results = {}
-      this.ws.reload(this.code)
+      this.applyPreview()
       this.msg = 'Back to the starting markup.'
       this.msgKind = ''
     },
@@ -153,7 +188,7 @@ export default function registerWorkbench(Alpine) {
       this.solutionShown = !this.solutionShown
       if (this.solutionShown && this.cfg.solution) {
         this.code = this.cfg.solution
-        this.ws.reload(this.code)
+        this.applyPreview()
         this.msg = 'A worked solution is in the editor. Change it, break it, learn from it.'
         this.msgKind = ''
       }

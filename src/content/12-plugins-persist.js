@@ -134,10 +134,12 @@ export default {
         {
           id: 't3',
           skill: '.as / .using',
-          text: 'The session counter must be its own thing: it starts above zero, and `forget` must not reset it (different store, different key).',
+          text: 'The session counter must be its own thing: it counts visits in this tab (above zero, and it survives a reload), it must **not** be sitting in `localStorage` where the draft lives, and `forget` must leave it alone.',
           checks: [
-            { kind: 'textNumber', selector: '[data-testid="tabs"]', value: 1, tol: 0.5 },
-            { kind: 'textNumber', selector: '[data-testid="tabs"]', value: 1, tol: 0.5, do: [{ click: '[data-testid="forget"]' }] }
+            { kind: 'textMatch', selector: '[data-testid="tabs"]', pattern: '^[1-9]\\d*$' },
+            { kind: 'storageGone', name: 'learn-alpine.tabs' },
+            { kind: 'textMatch', selector: '[data-testid="tabs"]', pattern: '^[1-9]\\d*$', do: [{ click: '[data-testid="forget"]' }, { wait: 120 }] },
+            { kind: 'text', selector: '[data-testid="basis"]', value: 'standard' }
           ]
         }
       ]

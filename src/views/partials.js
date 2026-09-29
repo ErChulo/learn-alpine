@@ -31,14 +31,14 @@ export function callout(kind, title, body) {
   </div>`
 }
 
-/** The checklist of tasks for one workbench cell. */
+/** The checklist of what the sandbox will verify — always visible, pass or fail. */
 export function taskList() {
   return `
   <ul class="tasks">
-    <template x-for="t in cfg.tasks" :key="t.id">
-      <li>
+    <template x-for="(t, i) in cfg.tasks" :key="t.id">
+      <li :class="results[t.id] ? results[t.id].status : 'todo'">
         <span class="mark" :class="results[t.id] ? results[t.id].status : 'todo'"
-              x-text="results[t.id]?.status === 'pass' ? '✓' : results[t.id]?.status === 'fail' ? '✗' : results[t.id]?.status === 'skip' ? '–' : '·'"></span>
+              x-text="results[t.id]?.status === 'pass' ? '✓' : results[t.id]?.status === 'fail' ? '✗' : results[t.id]?.status === 'skip' ? '–' : (i + 1)"></span>
         <div>
           <div class="task-text" x-html="t.html"></div>
           <div class="task-detail" x-show="results[t.id] && results[t.id].detail"
@@ -51,58 +51,90 @@ export function taskList() {
 }
 
 /**
- * The full workbook cell. `cfg` is passed through a data-attribute so the
- * markup stays free of fragile nested quoting.
+ * The workbench cell. Order matters and is deliberate:
+ *   1. the goal and the build list, pinned above everything, full width;
+ *   2. the run bar, so the action is never hunted for;
+ *   3. what is checked (left) beside the editor (right), so the requirements
+ *      stay on screen while you type;
+ *   4. the preview under the editor, at full width, instead of squeezed beside it.
  */
 export function workbench(cfg) {
   const c = { ...cfg }
   c.tasks = (c.tasks || []).map(t => ({ id: t.id, html: mini(t.text), checks: t.checks, skill: t.skill, phase: t.phase }))
+  c.goalHtml = mini(c.goal || c.objective || '')
+  c.build = (c.build || []).map(b => mini(b))
   return `
-  <div class="workbook" x-data="workbench" data-cfg='${jsonAttr(c)}' x-cloak>
-    <div class="wb-toolbar">
+  <div class="workbook" x-data="workbench" data-cfg='${jsonAttr(c)}' x-cloak :class="expanded ? 'expanded' : ''">
+
+    <div class="wb-goal">
+      <span class="wb-goal-tag">${c.kind === 'exercise' ? 'Your goal' : 'This step'}</span>
+      <p class="wb-goal-text" x-html="cfg.goalHtml"></p>
+      <template x-if="cfg.build && cfg.build.length">
+        <div class="wb-build-wrap">
+          <span class="wb-build-h">What to build</span>
+          <ul class="wb-build">
+            <template x-for="(b, i) in cfg.build" :key="i"><li x-html="b"></li></template>
+          </ul>
+        </div>
+      </template>
+    </div>
+
+    <div class="wb-bar">
       <button class="btn-primary" @click="run()" :disabled="running">
-        <span x-text="running ? 'Checking…' : 'Check my work'"></span>
+        <span x-text="running ? 'Running…' : '▶ Run checks'"></span>
       </button>
-      <button class="btn-sm" @click="reloadSandbox()" title="Start the preview page again with the current code">↻ restart preview</button>
-      <button class="btn-sm" @click="resetToStarter()">reset starter</button>
-      <button class="btn-sm" @click="revealHint()" x-show="remainingHints > 0">
-        <span x-text="'hint (' + remainingHints + ' left)'"></span>
-      </button>
-      <button class="btn-sm" @click="toggleSolution()" x-text="solutionShown ? 'hide solution' : 'worked solution'"></button>
-      <div style="flex:1"></div>
-      <span class="chip" :class="passCount === taskCount && taskCount ? 'accent' : ''">
-        <span x-text="passCount + '/' + taskCount"></span> tasks passed
-      </span>
+      <span class="wb-count" :class="passCount === taskCount && taskCount ? 'ok' : ''"
+            x-text="passCount + ' / ' + taskCount + ' checks passed'"></span>
+      <span class="wb-gap"></span>
+      <button class="btn-sm" @click="toggleLive()" :class="live ? 'btn-on' : ''"
+              x-text="live ? '● live preview on' : '○ live preview off'"
+              title="When on, the preview page rebuilds as you type"></button>
+      <button class="btn-sm" @click="expanded = !expanded" x-text="expanded ? '⤡ normal size' : '⤢ bigger editor'"></button>
+      <button class="btn-sm" @click="reloadSandbox()" title="Start the preview page again with the code you have now">↻ restart preview</button>
+      <button class="btn-sm" @click="resetToStarter()">reset to start</button>
+      <button class="btn-sm" @click="revealHint()" x-show="remainingHints > 0"
+              x-text="'hint (' + remainingHints + ' left)'"></button>
+      <button class="btn-sm" @click="toggleSolution()" x-text="solutionShown ? 'hide solution' : 'show solution'"></button>
     </div>
 
-    <div class="wb-split">
-      <div class="editor">
-        <label class="field" style="margin:0">
-          <span>Your markup — edit freely, nothing is submitted anywhere</span>
-          <textarea x-model="code" spellcheck="false" autocapitalize="off" autocorrect="off" wrap="off"
-                    aria-label="Exercise code editor" @keydown.tab.prevent="insertTab($event)"></textarea>
-        </label>
-      </div>
-      <div>
-        <div class="tiny muted" style="margin-bottom:6px">Preview — a real, isolated page running Alpine 3.17.4</div>
-        <div x-ref="host"></div>
+    <div class="run-msg" :class="msgKind" x-text="msg || 'Write the page on the right, then press Run checks.'"></div>
+
+    <div class="wb-grid">
+      <aside class="wb-side">
+        <h4 class="wb-h">What is checked <span class="tiny muted" x-text="'· ' + taskCount"></span></h4>
+        ${taskList()}
+        <template x-if="hintList.length">
+          <div class="callout info" style="margin-top:12px">
+            <div class="cal-head"><span>?</span><span>Hints you have opened</span></div>
+            <ul style="margin-bottom:0">
+              <template x-for="(h, i) in hintList" :key="i"><li x-html="h"></li></template>
+            </ul>
+          </div>
+        </template>
+      </aside>
+
+      <div class="wb-main">
+        <div class="pane">
+          <div class="pane-head">
+            <span class="pane-name">index.html — your page</span>
+            <span class="tiny muted" x-text="lineCount + ' lines'"></span>
+          </div>
+          <textarea class="wb-code" x-model="code" spellcheck="false" autocapitalize="off" autocorrect="off"
+                    wrap="soft" aria-label="Exercise code editor"
+                    @keydown.tab.prevent="insertTab($event)"></textarea>
+        </div>
+
+        <div class="pane">
+          <div class="pane-head">
+            <span class="pane-name">Live preview</span>
+            <span class="tiny muted" x-text="live ? 'a real page, rebuilt as you type · Alpine 3.17.4' : 'paused — press ↻ to rebuild'"></span>
+            <span class="wb-gap"></span>
+            <button class="btn-sm" @click="reloadSandbox()">↻</button>
+          </div>
+          <div class="preview" x-ref="host"></div>
+        </div>
       </div>
     </div>
-
-    <div class="run-msg" :class="msgKind" x-text="msg || 'Edit the preview above, then press Check my work.'"></div>
-
-    <template x-if="hintList.length">
-      <div class="callout info">
-        <div class="cal-head"><span>?</span><span>Hints you have opened</span></div>
-        <ul style="margin-bottom:0">
-          <template x-for="(h, i) in hintList" :key="i">
-            <li x-html="h"></li>
-          </template>
-        </ul>
-      </div>
-    </template>
-
-    ${taskList()}
   </div>`
 }
 

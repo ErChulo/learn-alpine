@@ -11,6 +11,7 @@
 
 import { modules, stats } from '../src/content/index.js'
 import { reference } from '../src/content/reference.js'
+import { ladder } from '../src/content/ladder.js'
 import { checkKinds, CUSTOM } from '../src/lib/checks.js'
 import * as data from '../src/content/data.js'
 
@@ -25,7 +26,7 @@ const group = name => console.log(`\n▸ ${name}`)
 /* ------------------------------------------------------------ 1. structure */
 group('content integrity')
 const ACTION_KEYS = ['click', 'dblclick', 'hover', 'focus', 'blur', 'type', 'set', 'select', 'key', 'scrollIntoView', 'dispatch', 'resize', 'drag', 'mark', 'wait']
-const needValue = ['text', 'textNumber', 'textMatch', 'textHas', 'textNotHas', 'count', 'countAtLeast', 'countAtMost', 'listLong', 'listUnique', 'attr', 'attrHas', 'klass', 'noKlass', 'styleIs', 'htmlHas', 'code', 'noCode', 'storage', 'storageGone', 'prop', 'list', 'listSet', 'listHas']
+const needValue = ['text', 'textNumber', 'textMatch', 'textHas', 'textNotHas', 'count', 'countAtLeast', 'countAtMost', 'listLong', 'listUnique', 'attr', 'attrHas', 'klass', 'noKlass', 'styleIs', 'htmlHas', 'code', 'noCode', 'storage', 'prop', 'list', 'listSet', 'listHas']
 
 ok(modules.length === 18, 'the curriculum has 18 modules', `got ${modules.length}`)
 ok(modules.every((m, i) => m.num === i + 1), 'module numbers are 1..18 in order')
@@ -118,7 +119,34 @@ for (const m of modules) {
   }
 }
 
-/* ------------------------------------------------------ 2. actuarial maths */
+/* ------------------------------------------------------------ 2. the ladder */
+group('the ladder (pedagogy)')
+for (const m of modules) {
+  const L = ladder[m.id]
+  ok(!!L, `${m.id}: has a ladder entry`)
+  if (!L) continue
+  for (const key of ['youKnow', 'adds', 'after']) {
+    ok(typeof L[key] === 'string' && L[key].length > 30, `${m.id}: ladder describes ${key}`)
+  }
+  for (const u of m.units) {
+    const r = L.units && L.units[u.id]
+    ok(!!r, `${m.id}.${u.id}: has a rung`)
+    if (!r) continue
+    ok(typeof r.idea === 'string' && r.idea.length > 20, `${m.id}.${u.id}: names the ONE idea of the rung`)
+    ok(typeof r.bridge === 'string' && r.bridge.length > 25, `${m.id}.${u.id}: bridges from the previous rung`)
+    if (u.kind === 'exercise') {
+      ok(typeof r.goal === 'string' && r.goal.length > 40, `${m.id}.${u.id}: exercise states its goal in plain words`)
+      ok(Array.isArray(r.build) && r.build.length >= 2, `${m.id}.${u.id}: exercise lists what to build`)
+    }
+  }
+  // a lesson may never come after an exercise: the ladder only goes up
+  const kinds = m.units.map(u => (u.kind === 'exercise' ? 'EX' : 'st'))
+  const firstEx = kinds.indexOf('EX')
+  ok(firstEx === -1 || !kinds.slice(firstEx).includes('st'),
+    `${m.id}: every lesson precedes the exercises (${kinds.join(' ')})`)
+}
+
+/* ------------------------------------------------------ 3. actuarial maths */
 group('actuarial and statistical maths')
 const L = data.life
 const closeTo = (a, b, tol, what) => ok(Math.abs(a - b) <= tol, what, `|${a} − ${b}| = ${Math.abs(a - b).toExponential(2)}`)
@@ -177,7 +205,7 @@ closeTo(gm.circle.sagitta, 10 - 8, 1e-12, 'circle sagitta r − √(r² − (c/2
 
 function checkNote(label, cond, detail) { if (!cond) ok(false, label, detail ? detail() : '') ; else pass++ }
 
-/* ----------------------------------------------------- 3. reference surface */
+/* ----------------------------------------------------- 4. reference surface */
 group('reference coverage')
 const needed = [
   // directives

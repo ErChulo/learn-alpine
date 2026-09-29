@@ -5,17 +5,62 @@
 
 import { workbench, quizItem, theory, example, callout } from './partials.js'
 import { esc, mini } from '../lib/utils.js'
+import { ladder } from '../content/ladder.js'
 
-const wbCfg = (mod, u) => ({
-  unitKey: `${mod.id}.${u.id}`,
-  moduleId: mod.id,
-  unitId: u.id,
-  starter: u.starter || '',
-  solution: u.solution || '',
-  mode: u.mode || 'provided',
-  hints: (u.hints || []).map(h => mini(h)),
-  tasks: u.tasks.map(t => ({ id: t.id, text: t.text, checks: t.checks, skill: t.skill, phase: t.phase }))
-})
+const rung = mod => (ladder[mod.id] || { units: {} })
+
+const wbCfg = (mod, u) => {
+  const L = (rung(mod).units || {})[u.id] || {}
+  return {
+    unitKey: `${mod.id}.${u.id}`,
+    moduleId: mod.id,
+    unitId: u.id,
+    kind: u.kind === 'exercise' ? 'exercise' : 'step',
+    title: u.title,
+    objective: u.objective || '',
+    goal: L.goal || u.objective || '',
+    build: L.build || [],
+    starter: u.starter || '',
+    solution: u.solution || '',
+    mode: u.mode || 'provided',
+    hints: (u.hints || []).map(h => mini(h)),
+    tasks: u.tasks.map(t => ({ id: t.id, text: t.text, checks: t.checks, skill: t.skill, phase: t.phase }))
+  }
+}
+
+/** The rung you are on: previous, this, next. */
+function rungStrip(mod, prev, next) {
+  return `
+  <div class="rung">
+    <span class="rung-n">Module ${mod.num} of 18</span>
+    <div class="rung-track">
+      ${prev ? `<a class="rung-step" href="#/m/${prev.id}"><span class="tiny muted">before</span> ${mini(prev.title.split(':')[0])}</a>` : `<span class="rung-step muted tiny">start of the ladder</span>`}
+      <span class="rung-here">● you are here</span>
+      ${next ? `<a class="rung-step" href="#/m/${next.id}"><span class="tiny muted">next</span> ${mini(next.title.split(':')[0])}</a>` : `<span class="rung-step muted tiny">last rung</span>`}
+    </div>
+  </div>`
+}
+
+/** What you already know → what this adds → what it unlocks. */
+function fitsCard(mod) {
+  const L = rung(mod)
+  if (!L.adds) return ''
+  return `
+  <div class="card fits">
+    <div class="fits-col">
+      <span class="fits-h">You can already</span>
+      <p>${mini(L.youKnow || '')}</p>
+    </div>
+    <div class="fits-col adds">
+      <span class="fits-h">This module adds</span>
+      <p>${mini(L.adds)}</p>
+    </div>
+    <div class="fits-col">
+      <span class="fits-h">Afterwards you can</span>
+      <p>${mini(L.after || '')}</p>
+    </div>
+  </div>`
+}
 
 function docsBlock(mod) {
   if (!mod.docRefs || !mod.docRefs.length) return ''
@@ -49,19 +94,24 @@ function progressCard(mod) {
   </div>`
 }
 
-function stepCard(mod, u, i) {
+function stepCard(mod, u, i, total) {
+  const L = (rung(mod).units || {})[u.id] || {}
   return `
   <section class="step" x-data="{ open: ${i === 0} }">
     <button class="step-head" type="button" @click="open = ! open" :aria-expanded="open">
-      <span class="sn">${String(i + 1).padStart(2, '0')}</span>
-      <span class="st">${esc(u.title)}</span>
+      <span class="sn">${i + 1}</span>
+      <span class="st-wrap">
+        <span class="st">${mini(u.title)}</span>
+        ${L.idea ? `<span class="st-idea"><span class="arw">→</span>${mini(L.idea)}</span>` : ''}
+      </span>
       <span class="chip" :class="$store.course.unitDone('${mod.id}', '${u.id}') ? 'accent' : ''">
         <span x-text="$store.course.unitPct('${mod.id}', '${u.id}')"></span>
       </span>
       <span class="chev" :class="open ? 'open' : ''">▾</span>
     </button>
     <div class="sb stack sb-fold" :class="open ? '' : 'folded'">
-      ${u.objective ? `<p class="tiny" style="margin:0"><span class="chip info" style="margin-right:6px">objective</span>${mini(u.objective)}</p>` : ''}
+      <div class="step-meta">Step ${i + 1} of ${total}</div>
+      ${L.bridge ? `<p class="bridge">${mini(L.bridge)}</p>` : ''}
       ${theory(u)}
       ${u.bullets ? `<ul>${u.bullets.map(b => `<li>${mini(b)}</li>`).join('')}</ul>` : ''}
       ${u.example ? example(u) : ''}
@@ -71,18 +121,19 @@ function stepCard(mod, u, i) {
   </section>`
 }
 
-function exerciseCard(mod, u, i) {
+function exerciseCard(mod, u, i, total) {
+  const L = (rung(mod).units || {})[u.id] || {}
   return `
   <div class="card">
     <div class="card-head">
-      <span class="chip accent">Exercise ${i + 1}</span>
-      <h3 style="flex:1">${esc(u.title)}</h3>
+      <span class="chip accent">Exercise ${i + 1} of ${total}</span>
+      <h3 style="flex:1">${mini(u.title.replace(/^Exercise — /, ''))}</h3>
       <span class="chip" :class="$store.course.unitDone('${mod.id}', '${u.id}') ? 'accent' : ''">
         <span x-text="$store.course.unitPct('${mod.id}', '${u.id}')"></span>
       </span>
     </div>
-    ${u.scenario ? `<div class="callout info"><div class="cal-head"><span>◆</span><span>The brief</span></div><p style="margin:0">${mini(u.scenario)}</p></div>` : ''}
-    ${u.objective ? `<p class="tiny muted">Objective: ${mini(u.objective)}</p>` : ''}
+    ${L.bridge ? `<p class="bridge">${mini(L.bridge)}</p>` : ''}
+    ${u.scenario ? `<div class="callout info sit"><div class="cal-head"><span>◆</span><span>The situation</span></div><p style="margin:0">${mini(u.scenario)}</p></div>` : ''}
     ${u.bullets ? `<ul>${u.bullets.map(b => `<li>${mini(b)}</li>`).join('')}</ul>` : ''}
     ${u.example ? example(u) : ''}
     ${(u.tips || []).map(t => callout(t.kind || 'info', t.title, t.body)).join('')}
@@ -94,6 +145,7 @@ function finishCard(mod, next) {
   return `
   <div class="card" style="background:#101a30">
     <h3>Finish line</h3>
+    ${rung(mod).after ? `<p class="after-line"><b>After this rung:</b> ${mini(rung(mod).after)}</p>` : ''}
     <p>You own this module when you can do all of the following <b>without looking at the solution</b>:</p>
     <ul>${(mod.mastery || []).map(m => `<li>${mini(m)}</li>`).join('')}</ul>
     <div class="row">
@@ -103,23 +155,25 @@ function finishCard(mod, next) {
   </div>`
 }
 
-export function renderModule(mod, next) {
+export function renderModule(mod, next, prev) {
   const steps = mod.units.filter(u => u.kind !== 'exercise')
   const exercises = mod.units.filter(u => u.kind === 'exercise')
   return `
   <div class="stack">
     <div>
-      <div class="crumb">Module ${mod.num} of 18 · ${esc(mod.blurb)}</div>
+      ${rungStrip(mod, prev, next)}
       <h1>${esc(mod.title)}</h1>
       <p style="font-size:1.06rem"><b>Goal · </b>${mini(mod.goal)}</p>
+      <p class="muted tiny">${esc(mod.blurb)}</p>
     </div>
 
+    ${fitsCard(mod)}
     ${mod.intro ? `<div class="card">${mod.intro.split('\n\n').map(p => `<p>${mini(p)}</p>`).join('')}</div>` : ''}
     ${progressCard(mod)}
 
-    ${steps.length ? `<h2>Guided steps</h2><p class="muted tiny">Each step is short on purpose: a few lines of theory, then a checked task that forces you to write the syntax yourself. Press <b>Check my work</b> when you think a task is done — the sandbox tells you exactly what it saw.</p>${steps.map((u, i) => stepCard(mod, u, i)).join('')}` : ''}
+    ${steps.length ? `<h2>Steps — one idea at a time</h2><p class="muted tiny">Each step is short on purpose: one idea, a few lines of it, then a checked task that makes you write the syntax yourself. Open a step, do the task, press <b>Run checks</b>.</p>${steps.map((u, i) => stepCard(mod, u, i, steps.length)).join('')}` : ''}
 
-    ${exercises.length ? `<h2>Exercises</h2><p class="muted tiny">Real problems from actuarial, statistical and geometric practice. They are harder than the steps: you get a scenario, a dataset and a spec, not a recipe.</p>${exercises.map((u, i) => exerciseCard(mod, u, i)).join('')}` : ''}
+    ${exercises.length ? `<h2>Exercises</h2><p class="muted tiny">Real problems, harder than the steps: you get a situation, a spec and a sandbox — not a recipe. The goal and what-to-build list sit at the top of each workbench.</p>${exercises.map((u, i) => exerciseCard(mod, u, i, exercises.length)).join('')}` : ''}
 
     <h2>Quiz</h2>
     <p class="muted tiny">${mod.quiz.length} items. First submission counts in full, a corrected answer counts half — guessing is expensive, understanding is cheap.</p>
